@@ -1,9 +1,6 @@
 package br.edu.ufape.sguPraeService.models;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,4 +15,8 @@ public class DadosBancarios {
     private String nomeTitular;
     private String conta;
     private String agencia;
+
+    @OneToOne(mappedBy = "dadosBancarios")
+    private Estudante estudante;
+
 }

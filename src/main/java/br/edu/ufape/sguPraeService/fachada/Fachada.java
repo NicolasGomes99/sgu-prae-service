@@ -400,6 +400,7 @@ public class Fachada {
 
     public DadosBancarios salvarDadosBancarios(Long idEstudante, DadosBancarios dadosBancarios) {
         Estudante estudante = estudanteService.buscarEstudante(idEstudante);
+        dadosBancarios.setEstudante(estudante);
         DadosBancarios salvo = dadosBancariosService.salvarDadosBancarios(dadosBancarios);
         estudante.setDadosBancarios(salvo);
         estudanteService.salvarEstudante(estudante);
