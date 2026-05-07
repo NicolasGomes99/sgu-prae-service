@@ -1,6 +1,7 @@
 package br.edu.ufape.sguPraeService.models.enums;
 
 public enum MotivoEncerramento {
+    CONCLUSAO_BENEFICIO,
     CONCLUSAO_CURSO,
     MIGRACAO_OUTRO_BENEFICIO,
     TRANCAMENTO_MATRICULA,
