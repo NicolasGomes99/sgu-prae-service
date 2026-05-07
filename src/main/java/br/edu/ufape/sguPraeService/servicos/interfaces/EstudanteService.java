@@ -26,5 +26,7 @@ public interface EstudanteService {
 
     void deletarEstudante(Long id) throws EstudanteNotFoundException;
 
+    Estudante buscarPorDadosBancariosId(Long id);
+
 
 }

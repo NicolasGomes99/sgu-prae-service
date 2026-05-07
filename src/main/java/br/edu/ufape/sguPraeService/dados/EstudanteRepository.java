@@ -27,6 +27,8 @@ public interface EstudanteRepository extends JpaRepository<Estudante, Long>,
 
     Page<Estudante> findAllByAtivoTrue(Pageable pageable);
 
+    Optional<Estudante> findByDadosBancarios_Id(Long dadosBancariosId);
+
     @Override
     default void customize(QuerydslBindings bindings, @NonNull QEstudante root) {
         bindings.bind(String.class).first((StringPath path, String value) -> path.containsIgnoreCase(value));

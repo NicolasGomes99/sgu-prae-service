@@ -28,6 +28,8 @@ public interface BeneficioRepository extends JpaRepository<Beneficio, Long>,
 
   List<Beneficio> findByAtivoTrue();
 
+  List<Beneficio> findAllByAtivoTrueAndStatusTrue();
+
   long countByEstudantesIdAndAtivoTrue(Long estudanteId);
 
   Page<Beneficio> findByMotivoEncerramentoNotNull(Pageable pageable);

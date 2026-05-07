@@ -3,6 +3,8 @@ package br.edu.ufape.sguPraeService.servicos;
 
 
 import br.edu.ufape.sguPraeService.auth.AuthenticatedUserProvider;
+import br.edu.ufape.sguPraeService.comunicacao.mensageria.NotificacaoEvent;
+import br.edu.ufape.sguPraeService.comunicacao.mensageria.NotificacaoPublisher;
 import br.edu.ufape.sguPraeService.dados.CancelamentoAgendamentoRepository;
 import br.edu.ufape.sguPraeService.exceptions.GlobalAccessDeniedException;
 import br.edu.ufape.sguPraeService.exceptions.notFoundExceptions.CancelamentoNotFoundException;
@@ -14,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -21,12 +24,25 @@ import java.util.UUID;
 public class CancelamentoService implements br.edu.ufape.sguPraeService.servicos.interfaces.CancelamentoService {
     private final CancelamentoAgendamentoRepository cancelamentoAgendamentoRepository;
     private final AuthenticatedUserProvider authenticatedUserProvider;
+    private final NotificacaoPublisher notificacaoPublisher;
 
 
     @Override
     public CancelamentoAgendamento salvar(CancelamentoAgendamento entity) {
         entity.setDataCancelamento(LocalDateTime.now());
-        return cancelamentoAgendamentoRepository.save(entity);
+        CancelamentoAgendamento salvo = cancelamentoAgendamentoRepository.save(entity);
+
+        // Notificar Estudante e Profissional do Cancelamento
+        UUID idAluno = salvo.getAgendamento().getEstudante().getUserId();
+        UUID idProfissional = salvo.getAgendamento().getVaga().getCronograma().getProfissional().getUserId();
+        String dataFormatada = salvo.getAgendamento().getData().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+        String msg = String.format("O agendamento do dia %s foi cancelado. Motivo: %s", dataFormatada, salvo.getMotivo());
+
+        notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(idAluno, "Agendamento Cancelado", msg, "AGENDAMENTO"));
+        notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(idProfissional, "Agendamento Cancelado", msg, "AGENDAMENTO"));
+
+        return salvo;
     }
 
     @Override
