@@ -16,8 +16,7 @@ public record NotificacaoEvent(
         return new NotificacaoEvent(destinatarioId, null, titulo, mensagem, tipo, LocalDateTime.now());
     }
 
-    // Construtor estático para notificações em grupo (ex: todos os gestores)
-    public static NotificacaoEvent paraGrupo(String perfilDestino, String titulo, String mensagem, String tipo) {
+    public static NotificacaoEvent paraPerfil(String perfilDestino, String titulo, String mensagem, String tipo) {
         return new NotificacaoEvent(null, perfilDestino, titulo, mensagem, tipo, LocalDateTime.now());
     }
 }
