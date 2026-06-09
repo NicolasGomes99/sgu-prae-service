@@ -1,15 +1,20 @@
 package br.edu.ufape.sguPraeService.servicos;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import br.edu.ufape.sguPraeService.comunicacao.dto.usuario.AlunoPublicResponse;
+import br.edu.ufape.sguPraeService.comunicacao.mensageria.NotificacaoEvent;
+import br.edu.ufape.sguPraeService.comunicacao.mensageria.NotificacaoPublisher;
 import br.edu.ufape.sguPraeService.exceptions.LimiteBeneficiosExcedidoException;
 import br.edu.ufape.sguPraeService.models.Beneficio;
 import br.edu.ufape.sguPraeService.models.Estudante;
+import br.edu.ufape.sguPraeService.models.enums.MotivoEncerramento;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +35,7 @@ public class BeneficioService implements br.edu.ufape.sguPraeService.servicos.in
 	private final BeneficioRepository beneficioRepository;
 	private final ModelMapper modelMapper;
 	private final AuthServiceHandler authServiceHandler;
+	private final NotificacaoPublisher notificacaoPublisher;
 
 	@Override
 	public Page<Beneficio> listar(Predicate predicate, Pageable pageable) {
@@ -100,6 +106,10 @@ public class BeneficioService implements br.edu.ufape.sguPraeService.servicos.in
 		Beneficio beneficio = buscar(id);
 		beneficio.setAtivo(false);
 		beneficioRepository.save(beneficio);
+
+		UUID idAluno = beneficio.getEstudantes().getUserId();
+		String msg = String.format("Seu benefício %s foi cancelado pelo sistema.", beneficio.getTipoBeneficio().getDescricao());
+		notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(idAluno, "Benefício Cancelado", msg, "BENEFICIO"));
 	}
 
 	@Override
@@ -205,5 +215,78 @@ public class BeneficioService implements br.edu.ufape.sguPraeService.servicos.in
 					map.put("quantidadeBeneficiados", e.getValue());
 					return map;
 				}).toList();
+	}
+
+	@Override
+	public Beneficio prorrogar(Long id, YearMonth novoPrazo, String observacoes) throws BeneficioNotFoundException {
+		Beneficio beneficio = buscar(id);
+
+		if (!beneficio.isAtivo()) {
+			throw new IllegalArgumentException("Não é possível prorrogar um benefício que já foi encerrado/inativado.");
+		}
+
+		beneficio.setFimBeneficio(novoPrazo);
+		beneficio.setObservacaoProrrogacao(observacoes);
+
+		Beneficio beneficioAtualizado = beneficioRepository.save(beneficio);
+
+		// Notificação de Prorrogação
+		UUID idAluno = beneficioAtualizado.getEstudantes().getUserId();
+		String msg = String.format("Seu benefício %s foi prorrogado até %s.",
+				beneficioAtualizado.getTipoBeneficio().getDescricao(), novoPrazo);
+		notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(idAluno, "Benefício Prorrogado", msg, "BENEFICIO"));
+
+		return beneficioAtualizado;
+	}
+
+	@Override
+	public Beneficio cancelar(Long id, MotivoEncerramento motivoEncerramento, String parecerTermino) throws BeneficioNotFoundException {
+		Beneficio beneficio = buscar(id);
+
+		beneficio.setMotivoEncerramento(motivoEncerramento);
+		beneficio.setParecerTermino(parecerTermino);
+
+		beneficio.setFimBeneficio(java.time.YearMonth.now());
+
+		beneficio.setAtivo(false);
+
+		Beneficio salvo = beneficioRepository.save(beneficio);
+
+		// Notificação de Cancelamento
+		UUID idAluno = salvo.getEstudantes().getUserId();
+		String msg = String.format("Seu benefício %s foi cancelado. Motivo: %s",
+				salvo.getTipoBeneficio().getDescricao(), motivoEncerramento);
+		notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(idAluno, "Benefício Cancelado", msg, "BENEFICIO"));
+
+		return salvo;
+	}
+
+	@Override
+	@Transactional
+	public void processarBeneficiosVencidos() {
+
+		// Busca todos os benefícios atualmente ativos
+		List<Beneficio> beneficiosAtivos = beneficioRepository.findAllByAtivoTrueAndStatusTrue();
+		YearMonth mesAtual = YearMonth.now();
+		int encerrados = 0;
+
+		for (Beneficio beneficio : beneficiosAtivos) {
+			// Verifica se a data de fim existe e se já ficou no passado
+			if (beneficio.getFimBeneficio() != null && beneficio.getFimBeneficio().isBefore(mesAtual)) {
+
+				beneficio.setAtivo(false);
+				beneficio.setStatus(false);
+				beneficio.setMotivoEncerramento(MotivoEncerramento.CONCLUSAO_BENEFICIO);
+				beneficioRepository.save(beneficio);
+				encerrados++;
+
+				// Notifica o aluno que o benefício chegou ao fim
+				UUID idAluno = beneficio.getEstudantes().getUserId();
+				String nomeBeneficio = beneficio.getTipoBeneficio().getDescricao();
+				String msg = String.format("O prazo de validade do seu benefício %s chegou ao fim. O benefício foi encerrado no sistema.", nomeBeneficio);
+
+				notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(idAluno, "Benefício Encerrado", msg, "BENEFICIO"));
+			}
+		}
 	}
 }

@@ -38,4 +38,7 @@ public class Agendamento {
 
     @ManyToOne
     private Estudante estudante;
+
+    @Column(name = "confirmacao_enviada", nullable = false)
+    private boolean confirmacaoEnviada = false;
 }

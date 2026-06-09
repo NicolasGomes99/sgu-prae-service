@@ -10,13 +10,22 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitConfig {
-    public static final String EXCHANGE = "auth-role-exchange";
+
+    // Exchange de Autenticação
+    public static final String AUTH_EXCHANGE = "auth-role-exchange";
+
+    // Exchange de Notificações
+    public static final String NOTIFICACAO_EXCHANGE = "sgu.notificacoes.exchange";
 
     @Bean
-    public TopicExchange exchange() {
-        return new TopicExchange(EXCHANGE);
+    public TopicExchange authRoleExchange() {
+        return new TopicExchange(AUTH_EXCHANGE);
     }
 
+    @Bean
+    public TopicExchange notificacaoExchange() {
+        return new TopicExchange(NOTIFICACAO_EXCHANGE);
+    }
 
     @Bean
     public MessageConverter jsonMessageConverter() {

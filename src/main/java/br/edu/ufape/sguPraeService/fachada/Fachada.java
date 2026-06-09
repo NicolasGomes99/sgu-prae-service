@@ -17,6 +17,8 @@ import br.edu.ufape.sguPraeService.comunicacao.dto.endereco.EnderecoRequest;
 import br.edu.ufape.sguPraeService.comunicacao.dto.estudante.*;
 import br.edu.ufape.sguPraeService.comunicacao.dto.pagamento.*;
 import br.edu.ufape.sguPraeService.comunicacao.dto.tipoatendimento.TipoAtendimentoUpdateRequest;
+import br.edu.ufape.sguPraeService.comunicacao.mensageria.NotificacaoEvent;
+import br.edu.ufape.sguPraeService.comunicacao.mensageria.NotificacaoPublisher;
 import br.edu.ufape.sguPraeService.exceptions.*;
 import br.edu.ufape.sguPraeService.models.*;
 import br.edu.ufape.sguPraeService.models.enums.ModalidadeAgendamento;
@@ -90,6 +92,7 @@ public class Fachada {
     private final PagamentoService pagamentoService;
     private final ArmazenamentoService armazenamentoService;
     private final AuthServiceClient authServiceClient;
+    private final NotificacaoPublisher notificacaoPublisher;
 
     @Value("${authClient.client-id}")
     private String clientId;
@@ -463,6 +466,11 @@ public class Fachada {
         DadosBancarios salvo = dadosBancariosService.salvarDadosBancarios(dadosBancarios);
         estudante.setDadosBancarios(salvo);
         estudanteService.salvarEstudante(estudante);
+
+        // Notificar o Estudante sobre o cadastro
+        String msg = String.format("Seus dados bancários foram cadastrados pelo gestor. Por favor, verifique se estão corretos para o recebimento de benefícios.");
+        notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(estudante.getUserId(), "Dados Bancários Cadastrados", msg, "SISTEMA"));
+
         return salvo;
     }
 
@@ -479,7 +487,18 @@ public class Fachada {
     }
 
     public DadosBancarios atualizarDadosBancarios(Long id, DadosBancarios novosDadosBancarios) {
-        return dadosBancariosService.atualizarDadosBancarios(id, novosDadosBancarios);
+        DadosBancarios dadosBancariosAtualizados = dadosBancariosService.atualizarDadosBancarios(id, novosDadosBancarios);
+
+        // Notificar o Estudante sobre a atualização
+        if (dadosBancariosAtualizados != null) {
+            Estudante estudante = estudanteService.buscarPorDadosBancariosId(id);
+            if (estudante != null) {
+                String msg = "Seus dados bancários foram atualizados pelo gestor. Por favor, acesse o sistema e verifique as novas informações.";
+                notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(estudante.getUserId(), "Dados Bancários Atualizados", msg, "SISTEMA"));
+            }
+        }
+
+        return dadosBancariosAtualizados;
     }
 
     // ------------------- TipoAtendimento ------------------- //
@@ -773,31 +792,22 @@ public class Fachada {
 
     @Transactional
     public void cancelarBeneficio(Long id, BeneficioCancelamentoRequest request) throws BeneficioNotFoundException {
-        Beneficio beneficio = beneficioService.buscar(id);
 
-        beneficio.setMotivoEncerramento(request.getMotivoEncerramento());
-        beneficio.setParecerTermino(request.getParecerTermino());
-
-
-        beneficio.setFimBeneficio(java.time.YearMonth.now());
-
-        beneficio.setAtivo(false);
-
-        beneficioService.salvar(beneficio);
+        beneficioService.cancelar(
+                id,
+                request.getMotivoEncerramento(),
+                request.getParecerTermino()
+        );
     }
 
     @Transactional
     public BeneficioResponse prorrogarBeneficio(Long id, BeneficioProrrogacaoRequest request) throws BeneficioNotFoundException {
-        Beneficio beneficio = beneficioService.buscar(id);
 
-        if (!beneficio.isAtivo()) {
-            throw new IllegalArgumentException("Não é possível prorrogar um benefício que já foi encerrado/inativado.");
-        }
-
-        beneficio.setFimBeneficio(request.getNovoPrazo());
-        beneficio.setObservacaoProrrogacao(request.getObservacoes());
-
-        Beneficio beneficioAtualizado = beneficioService.salvar(beneficio);
+        Beneficio beneficioAtualizado = beneficioService.prorrogar(
+                id,
+                request.getNovoPrazo(),
+                request.getObservacoes()
+        );
 
         return mapToBeneficioResponse(beneficioAtualizado);
     }

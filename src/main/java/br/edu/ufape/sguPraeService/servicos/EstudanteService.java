@@ -81,4 +81,7 @@ public class EstudanteService implements br.edu.ufape.sguPraeService.servicos.in
         estudanteRepository.save(estudante);
     }
 
+    public Estudante buscarPorDadosBancariosId(Long id) {
+        return estudanteRepository.findByDadosBancarios_Id(id).orElse(null);
+    }
 }
