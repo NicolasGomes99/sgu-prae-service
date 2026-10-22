@@ -99,7 +99,7 @@ keycloak:
   auth-server-url: ${KEYCLOAK_URL:http://localhost:9090}
   realm: ${KEYCLOAK_REALM:sgu-ufape}
   client-id: ${KEYCLOAK_CLIENT_ID:sgu-application}
-  client-secret: ${KEYCLOAK_CLIENT_SECRET:iIueertdxnoPmpoA1Fsy6BfjMVbEa1d5}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:HntTWny9OT0d3sCBc9qwc6asCNuHXY5e}
 
 common:
   front: ${FRONTEND_URL:http://localhost:3000/, https://sgiufape.vercel.app/}
