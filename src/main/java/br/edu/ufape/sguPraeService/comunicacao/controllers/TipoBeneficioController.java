@@ -32,7 +32,7 @@ public class TipoBeneficioController {
         return fachada.listarTipoBeneficios(predicate, pageable).map(tipoBeneficio -> new TipoBeneficioResponse(tipoBeneficio, modelMapper));
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+     @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/inativos")
     public ResponseEntity<Page<TipoBeneficioResponse>> listarInativos(
             @QuerydslPredicate(root = TipoBeneficio.class) Predicate predicate,
@@ -50,28 +50,28 @@ public class TipoBeneficioController {
         return new ResponseEntity<>(new TipoBeneficioResponse(response, modelMapper), HttpStatus.OK);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+     @PreAuthorize("hasRole('GESTOR')")
     @PostMapping
     public ResponseEntity<TipoBeneficioResponse> salvar(@Valid @RequestBody TipoBeneficioRequest entity) {
         TipoBeneficio response = fachada.salvarTipoBeneficio(entity.convertToEntity(entity, modelMapper));
         return new ResponseEntity<>(new TipoBeneficioResponse(response, modelMapper), HttpStatus.CREATED);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+     @PreAuthorize("hasRole('GESTOR')")
     @PatchMapping("/{id}")
     public ResponseEntity<TipoBeneficioResponse> editar(@PathVariable Long id, @Valid @RequestBody TipoBeneficioRequest entity) throws TipoBeneficioNotFoundException {
         TipoBeneficio response = fachada.editarTipoBeneficio(id, entity.convertToEntity(entity, modelMapper));
         return new ResponseEntity<>(new TipoBeneficioResponse(response, modelMapper), HttpStatus.OK);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+     @PreAuthorize("hasRole('GESTOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) throws TipoBeneficioNotFoundException {
         fachada.deletarTipoBeneficio(id);
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+     @PreAuthorize("hasRole('GESTOR')")
     @PatchMapping("desativar/{id}")
     public ResponseEntity<Void> desativar(@PathVariable Long id) throws TipoBeneficioNotFoundException {
         fachada.desativarTipoBeneficio(id);

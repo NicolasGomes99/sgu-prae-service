@@ -89,21 +89,21 @@ public class EstudanteController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/credores")
     public ResponseEntity<Page<CredorResponse>> listarCredoresComBeneficiosAtivos(@PageableDefault(sort = "id") Pageable pageable) {
         Page<CredorResponse> credores = fachada.listarCredoresComBeneficiosAtivos(pageable);
         return ResponseEntity.ok(credores);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/credores/beneficio/{id}")
     public ResponseEntity<Page<CredorResponse>> listarCredoresPorBeneficio(@PathVariable Long id, @PageableDefault(sort = "id") Pageable pageable) {
         Page<CredorResponse> credores = fachada.listarCredoresPorBeneficio(id, pageable);
         return ResponseEntity.ok(credores);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/credores/publicacao")
     public ResponseEntity<Page<PublicacaoResponse>> listarCredoresParaPublicacao( @PageableDefault(sort = "id") Pageable pageable) {
         Page<EstudanteResponse> pageAlunos = fachada.listarCredoresParaPublicacao(pageable);
@@ -112,13 +112,13 @@ public class EstudanteController {
         );
         return ResponseEntity.ok(pagePublicacoes);
     }
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/credores/curso/{id}")
     Page<CredorResponse> listarCredoresPorCurso(@PathVariable Long id, @PageableDefault(sort = "id") Pageable pageable) {
         return fachada.listarCredoresPorCurso(id, pageable);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/{id}/relatorio")
     public ResponseEntity<RelatorioEstudanteAssistidoResponse> gerarRelatorioAssistido(
             @PathVariable UUID id
@@ -134,7 +134,7 @@ public class EstudanteController {
         return ResponseEntity.ok(estudante);
     }
 
-    @PreAuthorize("hasAnyRole('GESTOR', 'PROFISSIONAL') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasAnyRole('GESTOR', 'PROFISSIONAL')")
     @GetMapping("/userid/{userId}")
     public ResponseEntity<EstudanteResponse> buscarEstudantePorUserId(@PathVariable UUID userId) throws EstudanteNotFoundException {
         EstudanteResponse estudante = fachada.buscarEstudantePorUserId(userId);

@@ -53,7 +53,7 @@ public class PagamentoController {
         return ResponseEntity.ok(fachada.mapToPagamentoResponse(pagamento));
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @PostMapping
     public ResponseEntity<List<PagamentoResponse>> salvar(@Valid @RequestBody List<PagamentoRequest> entities)
             throws BeneficioNotFoundException {
@@ -72,7 +72,7 @@ public class PagamentoController {
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @PostMapping("/cpf")
     public ResponseEntity<PagamentoResponse> criarPagamentoPorCpf(@Valid @RequestBody PagamentoCPFRequest request) {
         Pagamento pagamento = fachada.salvarPagamentoPorCpf(request);
@@ -80,21 +80,21 @@ public class PagamentoController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     public ResponseEntity<PagamentoResponse> editar(@PathVariable Long id, @RequestBody PagamentoPatchRequest dto)
             throws PagamentoNotFoundException {
         Pagamento atualizado = fachada.editarPagamento(id, dto);
         return ResponseEntity.ok(fachada.mapToPagamentoResponse(atualizado));
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) throws PagamentoNotFoundException {
         fachada.deletarPagamento(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @PatchMapping("desativar/{id}")
     public ResponseEntity<Void> desativar(@PathVariable Long id) throws PagamentoNotFoundException {
         fachada.desativarPagamento(id);
@@ -108,7 +108,7 @@ public class PagamentoController {
     }
 
 
-    @PreAuthorize("hasAnyRole('GESTOR', 'ESTUDANTE', 'PRAE_ACCESS')")
+    @PreAuthorize("hasAnyRole('GESTOR', 'ESTUDANTE')")
     @GetMapping("/estudante/{estudanteId}")
     public ResponseEntity<Page<PagamentoResponse>> listarPagamentosPorEstudante(
             @PathVariable UUID estudanteId,

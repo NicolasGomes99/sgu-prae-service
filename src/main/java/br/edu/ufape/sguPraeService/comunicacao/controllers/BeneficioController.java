@@ -45,7 +45,7 @@ public class BeneficioController {
                 .map(fachada::mapToBeneficioResponse);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/inativos")
     public ResponseEntity<Page<BeneficioResponse>> listarInativos(
             @QuerydslPredicate(root = Beneficio.class) Predicate predicate,
@@ -71,7 +71,7 @@ public class BeneficioController {
         return ResponseEntity.ok(fachada.mapToBeneficioResponse(beneficio));
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/{id}/termo")
     public ResponseEntity<DocumentoResponse> buscarTermo(@PathVariable Long id)
             throws BeneficioNotFoundException, IOException {
@@ -80,7 +80,7 @@ public class BeneficioController {
         return ResponseEntity.ok(termo);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<BeneficioResponse> salvar(@Valid @ModelAttribute BeneficioRequest entity)
             throws TipoBeneficioNotFoundException {
@@ -89,7 +89,7 @@ public class BeneficioController {
         return new ResponseEntity<>(fachada.mapToBeneficioResponse(beneficio), HttpStatus.CREATED);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @PatchMapping(value = "/{id}", consumes = "multipart/form-data")
     public ResponseEntity<BeneficioResponse> editar(@PathVariable Long id, @Valid @ModelAttribute BeneficioRequest entity)
             throws BeneficioNotFoundException, TipoBeneficioNotFoundException {
@@ -98,7 +98,7 @@ public class BeneficioController {
         return ResponseEntity.ok(fachada.mapToBeneficioResponse(beneficio));
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @PatchMapping("/{id}/cancelar")
     public ResponseEntity<Void> cancelarBeneficio(
             @PathVariable Long id,
@@ -109,14 +109,14 @@ public class BeneficioController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) throws BeneficioNotFoundException {
         fachada.deletarBeneficio(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/pagos")
     public ResponseEntity<Page<BeneficioResponse>> listarPagosPorMes(
             @PageableDefault(sort = "id") Pageable pageable // Adicionado Pageable
@@ -128,7 +128,7 @@ public class BeneficioController {
         );
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/tipo/{id}")
     public ResponseEntity<Page<BeneficioResponse>> listarPorTipo(@PageableDefault(sort = "id") Pageable pageable, @PathVariable Long id)
             throws BeneficioNotFoundException {
@@ -138,7 +138,7 @@ public class BeneficioController {
         );
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @GetMapping("/pendentes")
     public ResponseEntity<Page<BeneficioResponse>> listarAuxiliosPendentesMesAtual(
             @QuerydslPredicate(root = Beneficio.class) Predicate predicate,
@@ -148,7 +148,7 @@ public class BeneficioController {
         return ResponseEntity.ok(beneficios);
     }
 
-//    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')") Rota Publica
+//    @PreAuthorize("hasRole('GESTOR')") Rota Publica
 @GetMapping("/relatorio/financeiro")
 public ResponseEntity<RelatorioFinanceiroResponse> gerarRelatorioFinanceiro(
         @QuerydslPredicate(root = Pagamento.class) Predicate predicate,
@@ -177,7 +177,7 @@ public ResponseEntity<RelatorioFinanceiroResponse> gerarRelatorioFinanceiro(
         return ResponseEntity.ok(resposta);
     }
 
-    @PreAuthorize("hasRole('GESTOR') and hasRole('PRAE_ACCESS')")
+    @PreAuthorize("hasRole('GESTOR')")
     @PatchMapping("/{id}/prorrogar")
     public ResponseEntity<BeneficioResponse> prorrogarBeneficio(
             @PathVariable Long id,
