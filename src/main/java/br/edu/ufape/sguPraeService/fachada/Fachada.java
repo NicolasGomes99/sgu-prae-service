@@ -13,6 +13,7 @@ import br.edu.ufape.sguPraeService.comunicacao.dto.auth.TokenResponse;
 import br.edu.ufape.sguPraeService.comunicacao.dto.gestor.GestorRequest;
 import br.edu.ufape.sguPraeService.comunicacao.dto.notificacao.NotificacaoBroadcastRequest;
 import br.edu.ufape.sguPraeService.comunicacao.dto.profissional.ProfissionalRequest;
+import br.edu.ufape.sguPraeService.comunicacao.dto.curso.CursoPatchRequest;
 import br.edu.ufape.sguPraeService.comunicacao.dto.profissional.ProfissionalUpdateRequest;
 import br.edu.ufape.sguPraeService.comunicacao.dto.usuario.*;
 import br.edu.ufape.sguPraeService.comunicacao.dto.agendamento.AgendamentoResponse;
@@ -40,6 +41,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import br.edu.ufape.sguPraeService.auth.AuthenticatedUserProvider;
+import br.edu.ufape.sguPraeService.exceptions.notFoundExceptions.CursoNotFoundException;
 import br.edu.ufape.sguPraeService.comunicacao.dto.documento.DocumentoResponse;
 import br.edu.ufape.sguPraeService.comunicacao.dto.profissional.ProfissionalResponse;
 import jakarta.transaction.Transactional;
@@ -72,6 +74,7 @@ public class Fachada {
     private final UsuarioService usuarioService;
     private final TipoEtniaService tipoEtniaService;
     private final GestorService gestorService;
+    private final CursoService cursoService;
     private final NotificacaoSseServiceInterface notificacaoSseService;
     private final NotificacaoRedisServiceInterface notificacaoRedisService;
 
@@ -1172,6 +1175,45 @@ public class Fachada {
                 request.getTipo()
         );
         notificacaoPublisher.publicar(evento);
+    }
+
+    // ------------------- Curso ------------------- //
+
+    public Curso salvarCurso(Curso curso){
+        return cursoService.salvar(curso);
+    }
+
+    public Curso buscarCurso(Long id) throws CursoNotFoundException {
+        return cursoService.buscar(id);
+    }
+
+    public Page<Curso> listarCursos(Predicate predicate, Pageable pageable) {
+        return cursoService.listar(predicate, pageable);
+    }
+
+    public Curso editarCurso(Long id, CursoPatchRequest dto) throws CursoNotFoundException {
+        Curso curso = cursoService.buscar(id);
+
+        if (dto.getNome() != null) {
+            String nome = dto.getNome().trim();
+            if (nome.isEmpty()) {
+                throw new IllegalArgumentException("Nome do curso não pode ser vazio.");
+            }
+            curso.setNome(nome);
+        }
+
+        if (dto.getNumeroPeriodos() != null) {
+            if (dto.getNumeroPeriodos() <= 0) {
+                throw new IllegalArgumentException("Número de períodos deve ser maior que zero.");
+            }
+            curso.setNumeroPeriodos(dto.getNumeroPeriodos());
+        }
+
+        return cursoService.salvar(curso);
+    }
+
+    public void deletarCurso(Long id) throws CursoNotFoundException {
+        cursoService.deletar(id);
     }
 
     // ------------------- Métodos Auxiliares ------------------- //

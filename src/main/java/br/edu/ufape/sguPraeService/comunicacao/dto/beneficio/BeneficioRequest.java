@@ -46,7 +46,7 @@ public class BeneficioRequest {
     private MultipartFile termo;
 
     @NotNull(message = "O id do estudante é obrigatória")
-    @Positive(message = "Id do estudante inválido")
+//    @Positive(message = "Id do estudante inválido")
     private UUID estudanteId;
 
 
