@@ -7,6 +7,7 @@ import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.representations.idm.CredentialRepresentation;
@@ -125,11 +126,16 @@ public class KeycloakService implements br.edu.ufape.sguPraeService.servicos.int
 
     @Override
     public void logout(String accessToken, String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return;
+        }
         String logoutUrl = keycloakServerUrl + "/realms/" + realm + "/protocol/openid-connect/logout";
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        headers.add("Authorization", "Bearer " + accessToken);
+        if (accessToken != null && !accessToken.isBlank()) {
+            headers.add("Authorization", "Bearer " + accessToken);
+        }
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("client_id", clientId);
@@ -137,10 +143,13 @@ public class KeycloakService implements br.edu.ufape.sguPraeService.servicos.int
         body.add("refresh_token", refreshToken);
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-        ResponseEntity<String> response = restTemplate.exchange(logoutUrl, HttpMethod.POST, request, String.class);
-
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new KeycloakAuthenticationException("Erro ao realizar logout no Keycloak.");
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(logoutUrl, HttpMethod.POST, request, String.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                log.warn("Keycloak retornou status não-2xx durante logout: {}", response.getStatusCode());
+            }
+        } catch (Exception e) {
+            log.warn("Não foi possível revogar sessão no Keycloak durante logout (sessão possivelmente já expirada): {}", e.getMessage());
         }
     }
 
@@ -149,16 +158,20 @@ public class KeycloakService implements br.edu.ufape.sguPraeService.servicos.int
         String userId = null;
         try {
             UserRepresentation user = getUserRepresentation(email, password);
-            Response response = keycloak.realm(realm).users().create(user);
-
-            if (response.getStatus() != 201) {
-                if (response.getStatus() == 409) {
-                    throw new KeycloakAuthenticationException("Credenciais já existentes. Tente outro email.");
+            try (Response response = keycloak.realm(realm).users().create(user)) {
+                if (response.getStatus() != 201) {
+                    if (response.getStatus() == 409) {
+                        throw new KeycloakAuthenticationException("Credenciais já existentes. Tente outro email.");
+                    }
+                    throw new KeycloakAuthenticationException("Erro ao criar o usuário no Keycloak. Status: " + response.getStatus());
                 }
-                throw new KeycloakAuthenticationException("Erro ao criar o usuário no Keycloak. Status: " + response.getStatus());
+                userId = CreatedResponseUtil.getCreatedId(response);
             }
 
-            userId = keycloak.realm(realm).users().search(email).getFirst().getId();
+            if (userId == null || userId.isBlank()) {
+                userId = getUserId(email);
+            }
+
             RoleRepresentation userRole = keycloak.realm(realm).roles().get(role.toLowerCase()).toRepresentation();
             keycloak.realm(realm).users().get(userId).roles().realmLevel().add(Collections.singletonList(userRole));
 
@@ -175,6 +188,9 @@ public class KeycloakService implements br.edu.ufape.sguPraeService.servicos.int
         } catch (NotFoundException e) {
             if (userId != null) deleteUser(userId);
             throw new KeycloakAuthenticationException("Role " + role + " não encontrada no Keycloak.", e);
+        } catch (KeycloakAuthenticationException e) {
+            if (userId != null) deleteUser(userId);
+            throw e;
         } catch (Exception e) {
             if (userId != null) deleteUser(userId);
             throw new KeycloakAuthenticationException("Falha ao registrar usuário no Keycloak: " + e.getMessage(), e);
@@ -209,14 +225,16 @@ public class KeycloakService implements br.edu.ufape.sguPraeService.servicos.int
     @Override
     public void resetPassword(String email) throws KeycloakAuthenticationException {
         try {
-            List<UserRepresentation> users = keycloak.realm(realm).users().search(null, null, null, email, null, null);
+            List<UserRepresentation> users = keycloak.realm(realm).users().searchByEmail(email, true);
             if (users == null || users.isEmpty()) {
-                throw new KeycloakAuthenticationException("Usuário com email " + email + " não encontrado.");
+                // Não revela se o e-mail existe ou não (prevenção de User Enumeration)
+                log.debug("Solicitação de redefinição de senha para e-mail não encontrado: {}", email);
+                return;
             }
             String userId = users.getFirst().getId();
             keycloak.realm(realm).users().get(userId).executeActionsEmail(Collections.singletonList("UPDATE_PASSWORD"));
         } catch (Exception e) {
-            throw new KeycloakAuthenticationException("Erro ao solicitar redefinição de senha.", e);
+            log.error("Erro ao processar solicitação de redefinição de senha: {}", e.getMessage());
         }
     }
 
@@ -248,7 +266,7 @@ public class KeycloakService implements br.edu.ufape.sguPraeService.servicos.int
     }
 
     private boolean verifyEmailValid(String email) {
-        List<UserRepresentation> users = keycloak.realm(realm).users().search(null, null, null, email, null, null);
+        List<UserRepresentation> users = keycloak.realm(realm).users().searchByEmail(email, true);
         Optional<UserRepresentation> userOptional = users.stream()
                 .filter(user -> email.equalsIgnoreCase(user.getEmail()))
                 .findFirst();

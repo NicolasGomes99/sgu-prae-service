@@ -1,5 +1,6 @@
 package br.edu.ufape.sguPraeService.exceptions;
 
+import br.edu.ufape.sguPraeService.exceptions.auth.KeycloakAuthenticationException;
 import br.edu.ufape.sguPraeService.exceptions.notFoundExceptions.NotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.NonNull;
@@ -69,8 +70,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
-    @ExceptionHandler(TipoAtendimentoComCronogramaException.class)
-    public ResponseEntity<Object> handleTipoAtendimentoComCronogramaException(TipoAtendimentoComCronogramaException ex, HttpServletRequest request) {
+    @ExceptionHandler({
+            TipoAtendimentoComCronogramaException.class,
+            UnavailableVagaException.class,
+            TipoEtniaDuplicadoException.class
+    })
+    public ResponseEntity<Object> handleConflictExceptions(RuntimeException ex, HttpServletRequest request) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
         body.put("status", HttpStatus.CONFLICT.value());
@@ -117,6 +122,28 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         body.put("message", ex.getMessage());
         body.put("path", request.getRequestURI());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
+    }
+
+    @ExceptionHandler(GlobalAccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleGlobalAccessDenied(GlobalAccessDeniedException ex, HttpServletRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", HttpStatus.FORBIDDEN.getReasonPhrase());
+        body.put("message", ex.getMessage());
+        body.put("path", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(KeycloakAuthenticationException.class)
+    public ResponseEntity<Map<String, Object>> handleKeycloakAuthentication(KeycloakAuthenticationException ex, HttpServletRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.UNAUTHORIZED.value());
+        body.put("error", HttpStatus.UNAUTHORIZED.getReasonPhrase());
+        body.put("message", ex.getMessage());
+        body.put("path", request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
 }

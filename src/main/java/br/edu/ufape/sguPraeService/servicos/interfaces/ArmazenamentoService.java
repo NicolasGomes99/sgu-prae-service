@@ -15,4 +15,5 @@ public interface ArmazenamentoService {
 
     List<DocumentoResponse> converterDocumentosParaBase64(List<Documento> documentos) throws IOException;
 
+    void deletarArquivosFisicos(List<Documento> documentos);
 }

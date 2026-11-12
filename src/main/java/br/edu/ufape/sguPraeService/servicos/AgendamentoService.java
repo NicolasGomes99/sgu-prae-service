@@ -79,8 +79,10 @@ public class AgendamentoService implements br.edu.ufape.sguPraeService.servicos.
     @Override
     public Agendamento buscar(Long id) throws AgendamentoNotFoundException {
         Agendamento agendamento = repository.findById(id).orElseThrow(AgendamentoNotFoundException::new);
-        if(!Objects.equals(agendamento.getEstudante().getId(), authenticatedUserProvider.getUserId())
-                && !Objects.equals(agendamento.getVaga().getCronograma().getProfissional().getId(), authenticatedUserProvider.getUserId())){
+        UUID currentUserId = authenticatedUserProvider.getUserId();
+        if (!authenticatedUserProvider.hasAnyRole("GESTOR", "ADMINISTRADOR")
+                && !Objects.equals(agendamento.getEstudante().getId(), currentUserId)
+                && !Objects.equals(agendamento.getVaga().getCronograma().getProfissional().getId(), currentUserId)) {
             throw new GlobalAccessDeniedException("Você não tem permissão para acessar este recurso");
         }
         return agendamento;
@@ -123,6 +125,9 @@ public class AgendamentoService implements br.edu.ufape.sguPraeService.servicos.
     @Override
     public Agendamento alterarModalidade(Long id, ModalidadeAgendamento novaModalidade) throws AgendamentoNotFoundException {
         Agendamento agendamento = buscar(id);
+        if (!Objects.equals(agendamento.getEstudante().getId(), authenticatedUserProvider.getUserId())) {
+            throw new GlobalAccessDeniedException("Apenas o estudante titular pode alterar a modalidade deste agendamento.");
+        }
 
         LocalDateTime dataHoraAgendamento = LocalDateTime.of(agendamento.getData(), agendamento.getVaga().getHoraInicio());
         if (LocalDateTime.now().plusHours(2).isAfter(dataHoraAgendamento)) {

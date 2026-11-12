@@ -39,7 +39,7 @@ public interface BeneficioRepository extends JpaRepository<Beneficio, Long>,
 
   List<Beneficio> findAllByAtivoTrueAndEstudantes_Id(UUID estudantes_id);
 
-  Page<Beneficio> findAllByAtivoTrueAndEstudantes_Id(Long estudanteId, Pageable pageable);
+  Page<Beneficio> findAllByAtivoTrueAndEstudantes_Id(UUID estudanteId, Pageable pageable);
 
   @Query("SELECT b.estudantes FROM Beneficio b WHERE b.ativo = true")
   Page<Estudante> findAllEstudantesByAtivoTrue(Pageable pageable);
@@ -61,10 +61,11 @@ public interface BeneficioRepository extends JpaRepository<Beneficio, Long>,
   default void customize(QuerydslBindings bindings, @NonNull QBeneficio root) {
     bindings.bind(String.class).first((StringPath path, String value) -> path.containsIgnoreCase(value));
 
-    bindings.excluding(root.termo, root.pagamentos, root.estudantes.documentos);
+    bindings.excluding(root.termo, root.pagamentos, root.estudantes.documentos, root.estudantes.dadosBancarios);
 
     // Bindings de relacionamentos
     bindings.bind(root.estudantes.id).first((path, value) -> path.eq(value));
+    bindings.bind(root.estudantes.curso.id).first((path, value) -> path.eq(value));
     bindings.bind(root.tipoBeneficio.id).first((path, value) -> path.eq(value));
     bindings.bind(root.motivoEncerramento).first((path, value) -> path.eq(value));
 

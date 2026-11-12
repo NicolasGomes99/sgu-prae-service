@@ -29,7 +29,6 @@ public class CancelamentoService implements br.edu.ufape.sguPraeService.servicos
         entity.setDataCancelamento(LocalDateTime.now());
         CancelamentoAgendamento salvo = cancelamentoAgendamentoRepository.save(entity);
 
-        // ATUALIZADO: .getUserId() -> .getId()
         UUID idAluno = salvo.getAgendamento().getEstudante().getId();
         UUID idProfissional = salvo.getAgendamento().getVaga().getCronograma().getProfissional().getId();
         String dataFormatada = salvo.getAgendamento().getData().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
@@ -46,12 +45,13 @@ public class CancelamentoService implements br.edu.ufape.sguPraeService.servicos
     public CancelamentoAgendamento buscar(Long id) {
         CancelamentoAgendamento cancelamento = cancelamentoAgendamentoRepository.findById(id).orElseThrow(CancelamentoNotFoundException::new);
 
-        // ATUALIZADO: .getUserId() -> .getId()
-        if(!Objects.equals(cancelamento.getAgendamento().getEstudante().getId(), authenticatedUserProvider.getUserId())
-                && !Objects.equals(cancelamento.getAgendamento().getVaga().getCronograma().getProfissional().getId(), authenticatedUserProvider.getUserId())){
+        UUID currentUserId = authenticatedUserProvider.getUserId();
+        if (!authenticatedUserProvider.hasAnyRole("GESTOR", "ADMINISTRADOR")
+                && !Objects.equals(cancelamento.getAgendamento().getEstudante().getId(), currentUserId)
+                && !Objects.equals(cancelamento.getAgendamento().getVaga().getCronograma().getProfissional().getId(), currentUserId)) {
             throw new GlobalAccessDeniedException("Você não tem permissão para acessar este recurso");
         }
-        return cancelamentoAgendamentoRepository.findById(id).orElse(null);
+        return cancelamento;
     }
 
     @Override

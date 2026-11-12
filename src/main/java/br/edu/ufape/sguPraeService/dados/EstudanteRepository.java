@@ -32,9 +32,9 @@ public interface EstudanteRepository extends JpaRepository<Estudante, UUID>,
     @Override
     default void customize(QuerydslBindings bindings, @NonNull QEstudante root) {
         bindings.bind(String.class).first((StringPath path, String value) -> path.containsIgnoreCase(value));
-        bindings.excluding(root.ativo);
+        bindings.excluding(root.ativo, root.documentos);
         bindings.bind(root.endereco.id).first((path, value) -> path.eq(value));
         bindings.bind(root.dadosBancarios.id).first((path, value) -> path.eq(value));
-        // Adicionar outras customizações conforme necessário
+        bindings.bind(root.curso.id).first((path, value) -> path.eq(value));
     }
 }

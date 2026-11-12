@@ -8,7 +8,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.querydsl.core.types.Predicate;
 
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +18,7 @@ public interface BeneficioService {
 
     List<Beneficio> listar();
 
-    Page<Beneficio> listarPorEstudante(Long estudanteId, Pageable pageable);
+    Page<Beneficio> listarPorEstudante(UUID estudanteId, Pageable pageable);
 
     List<Beneficio> listarPorEstudante(UUID estudanteId);
 

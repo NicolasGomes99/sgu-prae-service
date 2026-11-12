@@ -31,6 +31,21 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long>,
 
     @Override
     default void customize(QuerydslBindings bindings, @NonNull QPagamento root) {
+        // Whitelist estrita: impede Blind Data Exfiltration via filtros arbitrários em dados pessoais do estudante
+        bindings.excludeUnlistedProperties(true);
+        bindings.including(
+                root.id,
+                root.numeroLote,
+                root.mesReferencia,
+                root.anoReferencia,
+                root.data,
+                root.valor,
+                root.beneficio.id,
+                root.beneficio.tipoBeneficio.id,
+                root.beneficio.estudantes.id,
+                root.beneficio.estudantes.curso.id
+        );
+
         bindings.bind(String.class).first((StringPath path, String value) -> path.containsIgnoreCase(value));
 
         bindings.bind(root.numeroLote).first((path, value) -> path.eq(value));
@@ -69,6 +84,7 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long>,
 
         // Acesso mantido, já que agora estudantes.id é o UUID
         bindings.bind(root.beneficio.estudantes.id).first((path, value) -> path.eq(value));
+        bindings.bind(root.beneficio.estudantes.curso.id).first((path, value) -> path.eq(value));
 
         bindings.excluding(root.ativo);
         bindings.excluding(root.beneficio.estudantes.documentos);

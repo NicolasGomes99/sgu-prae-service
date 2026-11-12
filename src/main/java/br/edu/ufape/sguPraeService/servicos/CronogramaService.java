@@ -1,10 +1,10 @@
 package br.edu.ufape.sguPraeService.servicos;
 
 import br.edu.ufape.sguPraeService.auth.AuthenticatedUserProvider;
+import br.edu.ufape.sguPraeService.exceptions.GlobalAccessDeniedException;
 import br.edu.ufape.sguPraeService.models.Cronograma;
 import br.edu.ufape.sguPraeService.dados.CronogramaRepository;
 import br.edu.ufape.sguPraeService.exceptions.notFoundExceptions.CronogramaNotFoundException;
-import jakarta.ws.rs.NotAllowedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,7 +38,6 @@ public class CronogramaService implements br.edu.ufape.sguPraeService.servicos.i
 
     @Override
     public Page<Cronograma> listarPorProfissional(UUID userId, Pageable pageable) {
-        // ATUALIZADO: Usando a nova assinatura do método (Profissional_Id)
         return repository.findAllByAtivoTrueAndProfissional_Id(userId, pageable);
     }
 
@@ -56,15 +55,12 @@ public class CronogramaService implements br.edu.ufape.sguPraeService.servicos.i
         return repository.existsByTipoAtendimento_Id(tipoAtendimentoId);
     }
 
-
     @Override
-    public void deletar(Long id){
-        UUID userId = authenticatedUserProvider.getUserId();
+    public void deletar(Long id) {
         Cronograma cronograma = buscar(id);
+        UUID ownerId = cronograma.getProfissional() != null ? cronograma.getProfissional().getId() : null;
+        authenticatedUserProvider.validateOwnershipOrRoles(ownerId, "GESTOR", "ADMINISTRADOR");
 
-        if (!cronograma.getProfissional().getId().equals(userId)) {
-            throw new NotAllowedException("Você não tem permissão para deletar este cronograma.");
-        }
         cronograma.setAtivo(false);
         repository.save(cronograma);
     }

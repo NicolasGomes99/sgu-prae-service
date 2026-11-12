@@ -2,7 +2,6 @@ package br.edu.ufape.sguPraeService.fachada;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.YearMonth;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -30,7 +29,6 @@ import br.edu.ufape.sguPraeService.models.*;
 import br.edu.ufape.sguPraeService.models.enums.ModalidadeAgendamento;
 import br.edu.ufape.sguPraeService.servicos.interfaces.*;
 import com.querydsl.core.BooleanBuilder;
-import jakarta.ws.rs.NotAllowedException;
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -89,6 +87,27 @@ public class Fachada {
     }
 
     public void logout(String accessToken, String refreshToken) {
+        try {
+            UUID userId = authenticatedUserProvider.getUserId();
+            limparConexoesSse(userId);
+        } catch (Exception ignored) {
+            // Caso o SecurityContext não tenha JWT populado (ex: cookie em rota pública), tenta extrair o subject do accessToken
+            try {
+                if (accessToken != null && !accessToken.isBlank()) {
+                    String[] parts = accessToken.split("\\.");
+                    if (parts.length == 3) {
+                        String payload = new String(Base64.getUrlDecoder().decode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
+                        com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload);
+                        String sub = node.path("sub").asText(null);
+                        if (sub != null && !sub.isBlank()) {
+                            limparConexoesSse(UUID.fromString(sub));
+                        }
+                    }
+                }
+            } catch (Exception ignoredToken) {
+                // Prossegue com a revogação no Keycloak
+            }
+        }
         keycloakService.logout(accessToken, refreshToken);
     }
 
@@ -105,7 +124,7 @@ public class Fachada {
 
     public Gestor buscarGestor(UUID id) throws GestorNotFoundException, UsuarioNotFoundException {
         UUID sessionId = authenticatedUserProvider.getUserId();
-        boolean isAdmin = keycloakService.getUserRoles(sessionId.toString()).contains("administrador");
+        boolean isAdmin = authenticatedUserProvider.hasAnyRole("ADMINISTRADOR", "GESTOR");
         return gestorService.buscarGestor(id, isAdmin, sessionId);
     }
 
@@ -119,30 +138,34 @@ public class Fachada {
 
     @Transactional
     public Usuario cadastrarEstudante(EstudanteRequest dto, List<MultipartFile> arquivos) throws Exception {
-        // 1. Cria a conta no Keycloak e recupera o UUID gerado
-        // Nota: O KeycloakService vai converter "ESTUDANTE" para "estudante" na hora de buscar a role
+        // 1. Valida entidades relacionadas antes de criar conta no Keycloak ou gravar arquivos em disco
+        TipoEtnia tipoEtnia = tipoEtniaService.buscarTipoEtnia(dto.getTipoEtniaId());
+        Curso curso = cursoService.buscar(dto.getCursoId());
+
+        // 2. Cria a conta no Keycloak e recupera o UUID gerado
         UUID keycloakId = keycloakService.createUser(dto.getEmail(), dto.getSenha(), "ESTUDANTE");
+        List<Documento> documentosSalvos = new ArrayList<>();
 
         try {
-            // 2. Mapeia o DTO diretamente para a Entidade Estudante (Herança resolve o resto)
             Estudante estudante = modelMapper.map(dto, Estudante.class);
             estudante.setId(keycloakId);
-            estudante.setTipoEtnia(tipoEtniaService.buscarTipoEtnia(dto.getTipoEtniaId()));
-//            estudante.setCurso(cursoService.buscar(dto.getCursoId()));
+            estudante.setTipoEtnia(tipoEtnia);
+            estudante.setCurso(curso);
 
-            // 3. Processa e anexa documentos, se existirem
             if (arquivos != null && !arquivos.isEmpty()) {
-                List<Documento> documentosSalvos = armazenamentoService.salvarArquivo(arquivos.toArray(new MultipartFile[0]));
+                documentosSalvos = armazenamentoService.salvarArquivo(arquivos.toArray(new MultipartFile[0]));
                 estudante.adicionarDocumentos(documentosSalvos);
             }
 
             return estudanteService.salvarEstudante(estudante);
 
         } catch (DataIntegrityViolationException e) {
-            keycloakService.deleteUser(keycloakId.toString()); // Rollback no Keycloak
+            armazenamentoService.deletarArquivosFisicos(documentosSalvos);
+            keycloakService.deleteUser(keycloakId.toString());
             throw ExceptionUtil.handleDataIntegrityViolationException(e);
         } catch (Exception e) {
-            keycloakService.deleteUser(keycloakId.toString()); // Rollback no Keycloak
+            armazenamentoService.deletarArquivosFisicos(documentosSalvos);
+            keycloakService.deleteUser(keycloakId.toString());
             throw new RuntimeException("Erro inesperado ao salvar o estudante: " + e.getMessage(), e);
         }
     }
@@ -154,15 +177,14 @@ public class Fachada {
         try {
             Profissional profissional = modelMapper.map(dto, Profissional.class);
             profissional.setId(keycloakId);
-            profissional.setTipoEtnia(tipoEtniaService.buscarTipoEtnia(dto.getTipoEtniaId()));
 
             return profissionalService.salvar(profissional);
 
         } catch (DataIntegrityViolationException e) {
-            keycloakService.deleteUser(keycloakId.toString()); // Rollback
+            keycloakService.deleteUser(keycloakId.toString());
             throw ExceptionUtil.handleDataIntegrityViolationException(e);
         } catch (Exception e) {
-            keycloakService.deleteUser(keycloakId.toString()); // Rollback
+            keycloakService.deleteUser(keycloakId.toString());
             throw new RuntimeException("Erro ao salvar o profissional: " + e.getMessage(), e);
         }
     }
@@ -174,15 +196,14 @@ public class Fachada {
         try {
             Gestor gestor = modelMapper.map(dto, Gestor.class);
             gestor.setId(keycloakId);
-            gestor.setTipoEtnia(tipoEtniaService.buscarTipoEtnia(dto.getTipoEtniaId()));
 
             return usuarioService.salvar(gestor);
 
         } catch (DataIntegrityViolationException e) {
-            keycloakService.deleteUser(keycloakId.toString()); // Rollback
+            keycloakService.deleteUser(keycloakId.toString());
             throw ExceptionUtil.handleDataIntegrityViolationException(e);
         } catch (Exception e) {
-            keycloakService.deleteUser(keycloakId.toString()); // Rollback
+            keycloakService.deleteUser(keycloakId.toString());
             throw new RuntimeException("Erro ao salvar o gestor: " + e.getMessage(), e);
         }
     }
@@ -191,7 +212,7 @@ public class Fachada {
 
     public Usuario buscarUsuario(UUID id) throws UsuarioNotFoundException {
         UUID sessionId = authenticatedUserProvider.getUserId();
-        boolean isAdmin = keycloakService.getUserRoles(sessionId.toString()).contains("administrador");
+        boolean isAdmin = authenticatedUserProvider.hasAnyRole("ADMINISTRADOR", "GESTOR");
         return usuarioService.buscarUsuario(id, isAdmin, sessionId);
     }
 
@@ -210,10 +231,6 @@ public class Fachada {
         if (dto.getNome() != null) usuario.setNome(dto.getNome());
         if (dto.getNomeSocial() != null) usuario.setNomeSocial(dto.getNomeSocial());
         if (dto.getTelefone() != null) usuario.setTelefone(dto.getTelefone());
-
-        if (dto.getTipoEtniaId() != null) {
-            usuario.setTipoEtnia(tipoEtniaService.buscarTipoEtnia(dto.getTipoEtniaId()));
-        }
 
         return usuarioService.salvar(usuario);
     }
@@ -247,7 +264,6 @@ public class Fachada {
                 .toList();
     }
 
-    // A chave agora é UUID
     public ProfissionalResponse buscarProfissional(UUID id) throws ProfissionalNotFoundException {
         Profissional profissional = profissionalService.buscar(id);
         return new ProfissionalResponse(profissional, modelMapper);
@@ -273,6 +289,7 @@ public class Fachada {
     }
 
     public void deletarProfissional(UUID id) throws ProfissionalNotFoundException {
+        authenticatedUserProvider.validateOwnershipOrRoles(id, "GESTOR", "ADMINISTRADOR");
         profissionalService.deletar(id);
     }
 
@@ -285,17 +302,19 @@ public class Fachada {
 
         if (arquivos != null && !arquivos.isEmpty()) {
             MultipartFile[] arquivosArray = arquivos.toArray(new MultipartFile[0]);
+            List<Documento> documentosSalvos = armazenamentoService.salvarArquivo(arquivosArray);
             try {
-                List<Documento> documentosSalvos = armazenamentoService.salvarArquivo(arquivosArray);
                 estudante.adicionarDocumentos(documentosSalvos);
                 estudanteService.salvarEstudante(estudante);
             } catch (Exception e) {
+                armazenamentoService.deletarArquivosFisicos(documentosSalvos);
                 throw new RuntimeException("Erro ao processar novos documentos do estudante", e);
             }
         }
     }
 
     public List<DocumentoResponse> buscarDocumentosPorEstudante(UUID estudanteId) throws EstudanteNotFoundException, IOException {
+        authenticatedUserProvider.validateOwnershipOrRoles(estudanteId, "GESTOR", "ADMINISTRADOR", "PROFISSIONAL");
         Estudante estudante = estudanteService.buscarEstudante(estudanteId);
         List<Documento> documentos = estudante.getDocumentos();
 
@@ -307,6 +326,7 @@ public class Fachada {
     }
 
     public EstudanteResponse buscarEstudante(UUID id) throws EstudanteNotFoundException {
+        authenticatedUserProvider.validateOwnershipOrRoles(id, "GESTOR", "ADMINISTRADOR", "PROFISSIONAL");
         Estudante estudante = estudanteService.buscarEstudante(id);
         return new EstudanteResponse(estudante, modelMapper);
     }
@@ -322,7 +342,6 @@ public class Fachada {
         BooleanBuilder filtrosPrae = new BooleanBuilder(predicate);
         QEstudante qEstudante = QEstudante.estudante;
 
-        // Ao invés de bater no Auth Service, filtramos tudo nativamente no banco do PRAE
         if (nome != null && !nome.isBlank()) {
             filtrosPrae.and(qEstudante.nome.containsIgnoreCase(nome));
         }
@@ -343,23 +362,27 @@ public class Fachada {
         Estudante estudanteParcial = new Estudante();
         Estudante estudante = estudanteService.buscarEstudante(userId);
 
-        if(estudanteUpdateRequest.getRendaPercapta() != null){
+        if (estudanteUpdateRequest.getRendaPercapta() != null) {
             estudanteParcial.setRendaPercapta(estudanteUpdateRequest.getRendaPercapta());
         }
 
-        if(estudanteUpdateRequest.getContatoFamilia() != null ){
+        if (estudanteUpdateRequest.getContatoFamilia() != null) {
             estudanteParcial.setContatoFamilia(estudanteUpdateRequest.getContatoFamilia());
         }
 
-        if(estudanteUpdateRequest.getDeficiente() != null){
+        if (estudanteUpdateRequest.getDeficiente() != null) {
             estudanteParcial.setDeficiente(estudanteUpdateRequest.getDeficiente());
         }
 
-        if(estudanteUpdateRequest.getTipoDeficiencia() != null){
+        if (estudanteUpdateRequest.getTipoDeficiencia() != null) {
             estudanteParcial.setTipoDeficiencia(estudanteUpdateRequest.getTipoDeficiencia());
         }
 
-        if(estudanteUpdateRequest.getEndereco() != null){
+        if (estudanteUpdateRequest.getTipoEtniaId() != null) {
+            estudanteParcial.setTipoEtnia(tipoEtniaService.buscarTipoEtnia(estudanteUpdateRequest.getTipoEtniaId()));
+        }
+
+        if (estudanteUpdateRequest.getEndereco() != null) {
             EnderecoRequest enderecoDTO = estudanteUpdateRequest.getEndereco();
             Endereco enderecoAtualizado = enderecoDTO.convertToEntity(enderecoDTO, this.modelMapper);
             estudanteParcial.setEndereco(enderecoService.editarEndereco(estudante.getEndereco().getId(), enderecoAtualizado));
@@ -370,6 +393,7 @@ public class Fachada {
     }
 
     public void deletarEstudante(UUID id) throws EstudanteNotFoundException {
+        authenticatedUserProvider.validateOwnershipOrRoles(id, "GESTOR", "ADMINISTRADOR");
         estudanteService.deletarEstudante(id);
     }
 
@@ -387,7 +411,6 @@ public class Fachada {
             return Page.empty(pageable);
         }
 
-        // Aplica o filtro de curso na memória para preservar a paginação original dos ativos
         List<CredorResponse> credores = estudantes.getContent().stream()
                 .filter(e -> e.getCurso() != null && e.getCurso().getId().equals(id))
                 .map(this::montarCredorResponse)
@@ -447,7 +470,6 @@ public class Fachada {
         return new EstudanteResponse(estudante, modelMapper);
     }
 
-    // Auxiliar Privado para montagem repetitiva do DTO
     private CredorResponse montarCredorResponse(Estudante estudante) {
         EstudanteResponse er = new EstudanteResponse(estudante, modelMapper);
         List<Beneficio> beneficiosAtivos = beneficioService.listarPorEstudante(estudante.getId()).stream()
@@ -465,7 +487,6 @@ public class Fachada {
         estudante.setDadosBancarios(salvo);
         estudanteService.salvarEstudante(estudante);
 
-        // Notificar o Estudante sobre o cadastro (getId() ao invés de getUserId())
         String msg = "Seus dados bancários foram cadastrados pelo gestor. Por favor, verifique se estão corretos para o recebimento de benefícios.";
         notificacaoPublisher.publicar(NotificacaoEvent.paraUsuario(estudante.getId(), "Dados Bancários Cadastrados", msg, "SISTEMA"));
 
@@ -477,7 +498,16 @@ public class Fachada {
     }
 
     public DadosBancarios buscarDadosBancarios(Long id) {
-        return dadosBancariosService.buscarDadosBancarios(id);
+        DadosBancarios dados = dadosBancariosService.buscarDadosBancarios(id);
+        if (dados == null) {
+            return null;
+        }
+        if (!authenticatedUserProvider.hasAnyRole("GESTOR", "ADMINISTRADOR")) {
+            Estudante titular = estudanteService.buscarPorDadosBancariosId(id);
+            UUID titularId = titular != null ? titular.getId() : null;
+            authenticatedUserProvider.validateOwnershipOrRoles(titularId, "GESTOR", "ADMINISTRADOR");
+        }
+        return dados;
     }
 
     public void deletarDadosBancarios(Long id) {
@@ -488,7 +518,6 @@ public class Fachada {
     public DadosBancarios atualizarDadosBancarios(Long id, DadosBancarios novosDadosBancarios) {
         DadosBancarios dadosBancariosAtualizados = dadosBancariosService.atualizarDadosBancarios(id, novosDadosBancarios);
 
-        // Notificar o Estudante sobre a atualização
         if (dadosBancariosAtualizados != null) {
             Estudante estudante = estudanteService.buscarPorDadosBancariosId(id);
             if (estudante != null) {
@@ -570,7 +599,6 @@ public class Fachada {
         UUID userId = authenticatedUserProvider.getUserId();
         TipoAtendimento tipoAtendimento = buscarTipoAtendimento(tipoAtendimentoId);
 
-        // Agora busca o Profissional nativamente pelo ID (UUID)
         Profissional profissional = profissionalService.buscar(userId);
 
         cronograma.setProfissional(profissional);
@@ -585,14 +613,11 @@ public class Fachada {
     @Transactional
     public Cronograma editarCronograma(Long cronogramaId, Cronograma cronograma, Long tipoAtendimentoId)
             throws TipoAtendimentoNotFoundException, CronogramaNotFoundException {
-        UUID userId = authenticatedUserProvider.getUserId();
         TipoAtendimento tipoAtendimento = buscarTipoAtendimento(tipoAtendimentoId);
         Cronograma cronogramaExistente = cronogramaService.buscar(cronogramaId);
 
-        // Alterado de getUserId() para getId()
-        if (!cronogramaExistente.getProfissional().getId().equals(userId)) {
-            throw new NotAllowedException("Você não tem permissão para editar este cronograma.");
-        }
+        UUID ownerId = cronogramaExistente.getProfissional() != null ? cronogramaExistente.getProfissional().getId() : null;
+        authenticatedUserProvider.validateOwnershipOrRoles(ownerId, "GESTOR", "ADMINISTRADOR");
 
         cronogramaExistente.setData(cronograma.getData());
         cronogramaExistente.setTipoAtendimento(tipoAtendimento);
@@ -612,17 +637,13 @@ public class Fachada {
     @Transactional
     public AgendamentoResponse agendarVaga(AgendamentoRequest request) throws VagaNotFoundException, UnavailableVagaException {
         try {
-            // 1. Busca a vaga a partir do ID contido na requisição
             Vaga vaga = vagaService.buscar(request.getVagaId());
-
-            // 2. Busca o estudante logado que está fazendo a requisição (usando UUID como ID nativo)
             Estudante estudante = estudanteService.buscarEstudante(authenticatedUserProvider.getUserId());
 
             if (vaga.isDisponivel()) {
                 vaga.setDisponivel(false);
-                vagaService.salvar(vaga); // Tranca a vaga para evitar concorrência
+                vagaService.salvar(vaga);
 
-                // 3. O serviço agora recebe a Vaga, o Estudante e a Modalidade escolhida
                 Agendamento agendamento = agendamentoService.agendar(vaga, estudante, request.getModalidade());
 
                 return mapToAgendamentoResponse(agendamento);
@@ -640,7 +661,6 @@ public class Fachada {
             throws AgendamentoNotFoundException {
         Agendamento agendamento = agendamentoService.buscar(id);
 
-        // Verifica as permissões utilizando o getId() nativo
         if (!Objects.equals(agendamento.getEstudante().getId(), authenticatedUserProvider.getUserId())
                 && !Objects.equals(agendamento.getVaga().getCronograma().getProfissional().getId(),
                 authenticatedUserProvider.getUserId())) {
@@ -664,12 +684,14 @@ public class Fachada {
     }
 
     public Page<AgendamentoResponse> listarAgendamentosPorEstudante(UUID estudanteId, Pageable pageable) {
+        authenticatedUserProvider.validateOwnershipOrRoles(estudanteId, "GESTOR", "ADMINISTRADOR", "PROFISSIONAL");
         Estudante estudante = estudanteService.buscarEstudante(estudanteId);
         return agendamentoService.listarAgendamentosPorEstudante(estudante, pageable)
                 .map(this::mapToAgendamentoResponse);
     }
 
     public Page<AgendamentoResponse> listarAgendamentosPorProfissional(UUID profissionalId, Pageable pageable) {
+        authenticatedUserProvider.validateOwnershipOrRoles(profissionalId, "GESTOR", "ADMINISTRADOR");
         Profissional profissional = profissionalService.buscar(profissionalId);
         return agendamentoService.listarPorProfissional(profissional, pageable)
                 .map(this::mapToAgendamentoResponse);
@@ -699,10 +721,8 @@ public class Fachada {
 
     @Transactional
     public Agendamento alterarModalidadeAgendamento(Long id, ModalidadeAgendamento novaModalidade) throws AgendamentoNotFoundException {
-        // A validação de tempo limite (2h antes) e a edição ocorrem no Service.
         return agendamentoService.alterarModalidade(id, novaModalidade);
     }
-
 
     private AgendamentoResponse mapToAgendamentoResponse(Agendamento agendamento) {
         return new AgendamentoResponse(agendamento, modelMapper);
@@ -783,12 +803,20 @@ public class Fachada {
         return beneficioService.listarPorTipo(tipoId, pageable);
     }
 
-    public Page<Beneficio> listarBeneficiosPorEstudanteId(Long estudanteId, Pageable pageable) throws EstudanteNotFoundException {
+    public Page<Beneficio> listarBeneficiosPorEstudanteId(UUID estudanteId, Pageable pageable) throws EstudanteNotFoundException {
+        authenticatedUserProvider.validateOwnershipOrRoles(estudanteId, "GESTOR", "ADMINISTRADOR");
         return beneficioService.listarPorEstudante(estudanteId, pageable);
     }
 
     public Beneficio buscarBeneficios(Long id) throws BeneficioNotFoundException {
         return beneficioService.buscar(id);
+    }
+
+    public Beneficio buscarBeneficioComValidacaoAcesso(Long id) throws BeneficioNotFoundException {
+        Beneficio beneficio = beneficioService.buscar(id);
+        UUID estudanteId = beneficio.getEstudantes() != null ? beneficio.getEstudantes().getId() : null;
+        authenticatedUserProvider.validateOwnershipOrRoles(estudanteId, "GESTOR", "ADMINISTRADOR");
+        return beneficio;
     }
 
     @Transactional
@@ -801,9 +829,13 @@ public class Fachada {
 
         MultipartFile[] arquivos = { termo };
         List<Documento> documentos = armazenamentoService.salvarArquivo(arquivos);
-        beneficio.setTermo(documentos.getFirst());
-
-        return beneficioService.salvar(beneficio);
+        try {
+            beneficio.setTermo(documentos.getFirst());
+            return beneficioService.salvar(beneficio);
+        } catch (RuntimeException e) {
+            armazenamentoService.deletarArquivosFisicos(documentos);
+            throw e;
+        }
     }
 
     @Transactional
@@ -815,14 +847,22 @@ public class Fachada {
         beneficio.setEstudantes(estudante);
         beneficio.setTipoBeneficio(tipoBeneficio);
 
-        if (termo != null) {
+        List<Documento> documentos = List.of();
+        if (termo != null && !termo.isEmpty()) {
             MultipartFile[] arquivos = { termo };
-            List<Documento> documentos = armazenamentoService.salvarArquivo(arquivos);
+            documentos = armazenamentoService.salvarArquivo(arquivos);
             beneficio.setTermo(documentos.getFirst());
-            beneficio.getTermo().setId(aux.getTermo().getId());
+            if (aux.getTermo() != null) {
+                beneficio.getTermo().setId(aux.getTermo().getId());
+            }
         }
 
-        return beneficioService.editar(aux, beneficio);
+        try {
+            return beneficioService.editar(aux, beneficio);
+        } catch (RuntimeException e) {
+            armazenamentoService.deletarArquivosFisicos(documentos);
+            throw e;
+        }
     }
 
     @Transactional
@@ -898,7 +938,6 @@ public class Fachada {
                         ((BigDecimal) obj[2]).doubleValue()
                 )).toList();
 
-        // Passa a responsabilidade de contar pelo curso diretamente ao BeneficioService (que foi ajustado na sua V3)
         List<Map<String, Object>> dadosCursos = beneficioService.obterQuantidadeBeneficiadosPorCurso(userIdsGerais);
         List<RelatorioFinanceiroResponse.BeneficiadosPorCursoDTO> beneficiadosPorCurso = dadosCursos.stream()
                 .map(map -> new RelatorioFinanceiroResponse.BeneficiadosPorCursoDTO(
@@ -936,7 +975,7 @@ public class Fachada {
     }
 
     public List<Pagamento> listarPagamentosPorBeneficioId(Long beneficioId) throws BeneficioNotFoundException {
-        Beneficio beneficio = beneficioService.buscar(beneficioId);
+        Beneficio beneficio = buscarBeneficioComValidacaoAcesso(beneficioId);
         return new ArrayList<>(beneficio.getPagamentos());
     }
 
@@ -945,7 +984,12 @@ public class Fachada {
     }
 
     public Pagamento buscarPagamento(Long id) throws PagamentoNotFoundException {
-        return pagamentoService.buscar(id);
+        Pagamento pagamento = pagamentoService.buscar(id);
+        UUID titularId = (pagamento.getBeneficio() != null && pagamento.getBeneficio().getEstudantes() != null)
+                ? pagamento.getBeneficio().getEstudantes().getId()
+                : null;
+        authenticatedUserProvider.validateOwnershipOrRoles(titularId, "GESTOR", "ADMINISTRADOR");
+        return pagamento;
     }
 
     public List<Pagamento> salvarPagamentos(List<Pagamento> pagamentos) throws BeneficioNotFoundException {
@@ -983,11 +1027,12 @@ public class Fachada {
     }
 
     public List<Pagamento> listarPagamentosPorEstudante(UUID estudanteId) {
+        authenticatedUserProvider.validateOwnershipOrRoles(estudanteId, "GESTOR", "ADMINISTRADOR");
         return pagamentoService.listarPorEstudanteId(estudanteId);
     }
 
-    // Alterado de Long para UUID na assinatura
     public Page<PagamentoResponse> listarPagamentosPorEstudante(UUID estudanteId, Predicate predicate, Pageable pageable) {
+        authenticatedUserProvider.validateOwnershipOrRoles(estudanteId, "GESTOR", "ADMINISTRADOR");
         QPagamento qPagamento = QPagamento.pagamento;
         BooleanBuilder construtorFiltros = new BooleanBuilder();
 
@@ -1003,9 +1048,6 @@ public class Fachada {
 
     @Transactional
     public Pagamento salvarPagamentoPorCpf(PagamentoCPFRequest request) {
-        log.info("Buscando aluno localmente com CPF: {}", request.getCpf());
-
-        // Prepara as versões do CPF
         String cpfOriginal = request.getCpf();
         String cpfSemFormatacao = cpfOriginal.replaceAll("[^0-9]", "");
         String cpfFormatado = cpfSemFormatacao.length() == 11 ?
@@ -1014,7 +1056,6 @@ public class Fachada {
         QEstudante qEstudante = QEstudante.estudante;
         BooleanBuilder construtor = new BooleanBuilder();
 
-        // Busca com 1 única query considerando as 3 possibilidades
         construtor.and(
                 qEstudante.cpf.eq(cpfOriginal)
                         .or(qEstudante.cpf.eq(cpfSemFormatacao))
@@ -1024,12 +1065,10 @@ public class Fachada {
         Page<Estudante> pageEstudantes = estudanteService.listarEstudantes(construtor.getValue(), Pageable.unpaged());
 
         if (pageEstudantes.isEmpty()) {
-            log.error("Nenhum estudante encontrado com o CPF informado: {}", cpfOriginal);
-            throw new EstudanteNotFoundException("Aluno com CPF " + request.getCpf() + " não encontrado no sistema");
+            throw new EstudanteNotFoundException("Aluno com o CPF informado não foi encontrado no sistema");
         }
 
         Estudante estudante = pageEstudantes.getContent().getFirst();
-        log.info("Estudante encontrado localmente: ID {}, Nome: {}", estudante.getId(), estudante.getNome());
 
         List<Beneficio> beneficiosAtivos = beneficioService.listarPorEstudante(estudante.getId());
 
@@ -1047,7 +1086,7 @@ public class Fachada {
         } else {
             if (beneficiosAtivos.size() > 1) {
                 throw new IllegalArgumentException(
-                        "O estudante possui múltiplos benefícios ativos ("+ beneficiosAtivos.size() +"). É obrigatório informar o Tipo de benefício."
+                        "O estudante possui múltiplos benefícios ativos (" + beneficiosAtivos.size() + "). É obrigatório informar o Tipo de benefício."
                 );
             }
             beneficioSelecionado = beneficiosAtivos.getFirst();
@@ -1078,7 +1117,6 @@ public class Fachada {
                 .distinct()
                 .toList();
 
-        // Busca local, sem rede
         Page<Estudante> estudantes = estudanteService.buscarPorUserIds(userIds, Pageable.unpaged());
         Map<UUID, Estudante> mapaAlunos = estudantes.getContent().stream()
                 .collect(Collectors.toMap(Estudante::getId, Function.identity()));
@@ -1108,7 +1146,13 @@ public class Fachada {
     }
 
     public List<Map<String, Object>> obterQuantidadeBeneficiadosPorCurso(List<UUID> userIds) {
-        // Redireciona para o BeneficioService que agora resolve isso nativamente
+        return beneficioService.obterQuantidadeBeneficiadosPorCurso(userIds);
+    }
+
+    public List<Map<String, Object>> obterQuantidadeBeneficiadosPorCursoComFiltro(Predicate predicate) {
+        List<UUID> userIds = (predicate == null)
+                ? beneficioService.obterUserIdsEstudantesComBeneficioAtivo()
+                : pagamentoService.obterIdsEstudantesComPagamento(predicate);
         return beneficioService.obterQuantidadeBeneficiadosPorCurso(userIds);
     }
 
@@ -1179,7 +1223,7 @@ public class Fachada {
 
     // ------------------- Curso ------------------- //
 
-    public Curso salvarCurso(Curso curso){
+    public Curso salvarCurso(Curso curso) {
         return cursoService.salvar(curso);
     }
 
@@ -1215,24 +1259,4 @@ public class Fachada {
     public void deletarCurso(Long id) throws CursoNotFoundException {
         cursoService.deletar(id);
     }
-
-    // ------------------- Métodos Auxiliares ------------------- //
-
-    /**
-     * Formata um CPF para o padrão XXX.YYY.ZZZ-MM
-     * @param cpf CPF apenas com números (11 dígitos)
-     * @return CPF formatado ou o CPF original se não tiver 11 dígitos
-     */
-    private String formatarCpf(String cpf) {
-        if (cpf == null || cpf.length() != 11) {
-            return cpf;
-        }
-        return String.format("%s.%s.%s-%s",
-            cpf.substring(0, 3),
-            cpf.substring(3, 6),
-            cpf.substring(6, 9),
-            cpf.substring(9, 11)
-        );
-    }
-
 }
