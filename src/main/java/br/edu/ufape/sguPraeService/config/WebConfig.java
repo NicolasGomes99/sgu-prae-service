@@ -59,7 +59,7 @@ public class WebConfig {
                         .requestMatchers(HttpMethod.POST, "/usuario/estudante").permitAll()
 
                         // Necessário para o front listar opções nos selects do cadastro
-                        .requestMatchers(HttpMethod.GET, "/curso").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/curso", "/tipoEtnia").permitAll()
 
                         // ==========================================
                         // ROTAS DO PAINEL DE TRANSPARÊNCIA (Públicas)

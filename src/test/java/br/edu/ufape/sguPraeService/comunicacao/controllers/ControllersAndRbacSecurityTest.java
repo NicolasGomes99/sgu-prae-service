@@ -113,6 +113,16 @@ class ControllersAndRbacSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"perfilDestino\":\"TODOS\",\"titulo\":\"Aviso\",\"mensagem\":\"Msg\",\"tipo\":\"SISTEMA\"}"))
                 .andExpect(status().isUnauthorized());
+
+        // Rotas públicas de apoio ao auto-cadastro de estudantes devem responder 200 sem token JWT
+        when(fachada.listarCursos(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(fachada.listarTiposEtnia(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/curso"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/tipoEtnia"))
+                .andExpect(status().isOk());
     }
 
     @Test
