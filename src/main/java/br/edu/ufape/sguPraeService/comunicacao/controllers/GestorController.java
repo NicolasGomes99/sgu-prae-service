@@ -5,10 +5,15 @@ import br.edu.ufape.sguPraeService.exceptions.notFoundExceptions.GestorNotFoundE
 import br.edu.ufape.sguPraeService.exceptions.notFoundExceptions.UsuarioNotFoundException;
 import br.edu.ufape.sguPraeService.fachada.Fachada;
 import br.edu.ufape.sguPraeService.models.Gestor;
-import br.edu.ufape.sguPraeService.models.Usuario;
 import com.querydsl.core.types.Predicate;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,26 +33,43 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/gestor")
+@Tag(name = "05. Gestores")
 public class GestorController {
 
     private final Fachada fachada;
     private final ModelMapper modelMapper;
 
+    @Operation(
+            summary = "Buscar gestor por ID (UUID)",
+            description = """
+                    Retorna os dados cadastrais de um gestor da PRAE pelo seu `UUID`.
+                    - **Proteção Anti-IDOR**: O gestor autenticado só pode consultar seu próprio registro, exceto usuários com role `ADMINISTRADOR`.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Gestor encontrado."),
+            @ApiResponse(responseCode = "403", description = "Acesso negado."),
+            @ApiResponse(responseCode = "404", description = "Gestor não encontrado.")
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<GestorResponse> buscarGestor(@PathVariable UUID id) throws GestorNotFoundException, UsuarioNotFoundException {
-        // A fachada agora retorna Gestor, então o GestorResponse vai aceitar sem reclamar!
+    public ResponseEntity<GestorResponse> buscarGestor(
+            @Parameter(description = "UUID do gestor", required = true) @PathVariable UUID id) throws GestorNotFoundException, UsuarioNotFoundException {
         Gestor response = fachada.buscarGestor(id);
         return new ResponseEntity<>(new GestorResponse(response, modelMapper), HttpStatus.OK);
     }
 
+    @Operation(
+            summary = "Listar gestores ativos (Paginado)",
+            description = "Lista todos os gestores ativos com suporte a filtros QueryDSL e paginação. Exclusivo para `ADMINISTRADOR`."
+    )
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     @GetMapping
     public Page<GestorResponse> listarGestores(
-            @QuerydslPredicate(root = Gestor.class) Predicate predicate, // Mudei de Usuario.class para Gestor.class
-            @PageableDefault(value = 10)
+            @Parameter(hidden = true) @QuerydslPredicate(root = Gestor.class) Predicate predicate,
+            @ParameterObject @PageableDefault(value = 10)
             @SortDefault(sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
 
         return fachada.listarGestores(predicate, pageable)
-                .map(gestor -> new GestorResponse(gestor, modelMapper)); // Nomes limpos
+                .map(gestor -> new GestorResponse(gestor, modelMapper));
     }
 }
