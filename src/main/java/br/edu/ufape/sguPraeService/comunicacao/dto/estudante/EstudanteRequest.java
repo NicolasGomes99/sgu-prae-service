@@ -29,6 +29,9 @@ public class EstudanteRequest extends UsuarioRequest {
     @NotNull(message = "O ID do curso é obrigatório")
     private Long cursoId;
 
+    @NotNull(message = "Defina o tipo de Etnia.")
+    private Long tipoEtniaId;
+
     @PositiveOrZero(message = "Renda deve ser um valor positivo ou zero.")
     private BigDecimal rendaPercapta;
 

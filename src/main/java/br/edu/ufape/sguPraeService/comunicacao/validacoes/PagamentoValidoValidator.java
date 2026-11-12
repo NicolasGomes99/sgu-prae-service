@@ -32,7 +32,8 @@ public class PagamentoValidoValidator implements ConstraintValidator<PagamentoVa
                         .addConstraintViolation();
                 return false;
             }
-            if (pagamentoRequest.getData().isAfter(beneficio.getFimBeneficio().atEndOfMonth())) {
+            if (beneficio != null && beneficio.getFimBeneficio() != null && pagamentoRequest.getData() != null
+                    && pagamentoRequest.getData().isAfter(beneficio.getFimBeneficio().atEndOfMonth())) {
                 context.disableDefaultConstraintViolation();
                 context.buildConstraintViolationWithTemplate("Data do pagamento excede o termino do auxílio")
                         .addPropertyNode("data")

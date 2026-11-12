@@ -63,8 +63,7 @@ CREATE TABLE usuario (
                          email VARCHAR(255) UNIQUE NOT NULL,
                          nome VARCHAR(255),
                          nome_social VARCHAR(255),
-                         telefone VARCHAR(255),
-                         tipo_etnia_id BIGINT REFERENCES tipo_etnia(id)
+                         telefone VARCHAR(255)
 );
 
 CREATE TABLE estudante (
@@ -75,6 +74,7 @@ CREATE TABLE estudante (
                            tipo_deficiencia VARCHAR(255),
                            matricula VARCHAR(255) UNIQUE,
                            curso_id BIGINT REFERENCES curso(id),
+                           tipo_etnia_id BIGINT REFERENCES tipo_etnia(id),
                            dados_bancarios_id BIGINT UNIQUE REFERENCES dados_bancarios(id),
                            endereco_id BIGINT UNIQUE REFERENCES endereco(id)
 );

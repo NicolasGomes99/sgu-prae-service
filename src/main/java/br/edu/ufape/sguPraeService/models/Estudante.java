@@ -24,6 +24,10 @@ public class Estudante extends Usuario {
     @JoinColumn(name = "curso_id")
     private Curso curso;
 
+    @ManyToOne
+    @JoinColumn(name = "tipo_etnia_id")
+    private TipoEtnia tipoEtnia;
+
     private BigDecimal rendaPercapta;
     private String contatoFamilia;
     private boolean deficiente = false;

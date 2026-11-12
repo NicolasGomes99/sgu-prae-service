@@ -28,7 +28,4 @@ public abstract class Usuario {
 
     private String telefone;
     private Boolean ativo = true;
-
-    @ManyToOne
-    private TipoEtnia tipoEtnia;
 }

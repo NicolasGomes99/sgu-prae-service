@@ -4,7 +4,6 @@ import br.edu.ufape.sguPraeService.comunicacao.annotations.NumeroValido;
 import br.edu.ufape.sguPraeService.models.Usuario;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -22,9 +21,11 @@ public class UsuarioRequest {
     @Size(max = 100, message = "O nome social deve ter no máximo 100 caracteres")
     private String nomeSocial;
 
+    @NotBlank(message = "O CPF é obrigatório")
     @CPF
     private String cpf;
 
+    @NotBlank(message = "O e-mail é obrigatório")
     @Email
     private String email;
 
@@ -34,9 +35,6 @@ public class UsuarioRequest {
 
     @NumeroValido
     private String telefone;
-
-    @NotNull(message = "Defina o tipo de Etnia.")
-    private Long tipoEtniaId;
 
     public Usuario convertToEntity(UsuarioRequest usuarioRequest, ModelMapper modelMapper) {
         return modelMapper.map(usuarioRequest, Usuario.class);

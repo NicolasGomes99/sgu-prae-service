@@ -26,6 +26,7 @@ public class EstudanteUpdateRequest {
     @Size(max = 100, message = "O campo 'deficiencia' deve ter no máximo 100 caracteres.")
     private String tipoDeficiencia;
 
+    private Long tipoEtniaId;
 
     @Valid
     private EnderecoRequest endereco;

@@ -1,15 +1,12 @@
 package br.edu.ufape.sguPraeService.comunicacao.dto.beneficio;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.UUID;
 
 import br.edu.ufape.sguPraeService.models.Beneficio;
-import br.edu.ufape.sguPraeService.models.enums.MotivoEncerramento;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import org.modelmapper.ModelMapper;
-import org.modelmapper.convention.MatchingStrategies;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -46,12 +43,14 @@ public class BeneficioRequest {
     private MultipartFile termo;
 
     @NotNull(message = "O id do estudante é obrigatória")
-//    @Positive(message = "Id do estudante inválido")
     private UUID estudanteId;
 
 
     public Beneficio convertToEntity(BeneficioRequest beneficioRequest, ModelMapper modelMapper) {
-        modelMapper.getConfiguration().setMatchingStrategy(MatchingStrategies.STRICT);
-        return modelMapper.map(beneficioRequest, Beneficio.class);
+        Beneficio entity = new Beneficio();
+        entity.setInicioBeneficio(beneficioRequest.getInicioBeneficio());
+        entity.setFimBeneficio(beneficioRequest.getFimBeneficio());
+        entity.setValorPagamento(beneficioRequest.getValorPagamento());
+        return entity;
     }
 }

@@ -16,15 +16,22 @@ public class PagamentoResponse {
 
     private Long id;
     private BigDecimal valor;
-	private LocalDate data;
+    private LocalDate data;
     private Integer mesReferencia;
     private Integer anoReferencia;
     private String numeroLote;
     private BeneficioResponse beneficio;
 
-    public PagamentoResponse(Pagamento pagamento, ModelMapper modelMapper){
+    public PagamentoResponse(Pagamento pagamento, ModelMapper modelMapper) {
         if (pagamento == null) throw new IllegalArgumentException("Pagamento não pode ser nulo");
-        pagamento.getBeneficio().getPagamentos().clear();
-        modelMapper.map(pagamento, this);
+        this.id = pagamento.getId();
+        this.valor = pagamento.getValor();
+        this.data = pagamento.getData();
+        this.mesReferencia = pagamento.getMesReferencia();
+        this.anoReferencia = pagamento.getAnoReferencia();
+        this.numeroLote = pagamento.getNumeroLote();
+        if (pagamento.getBeneficio() != null) {
+            this.beneficio = new BeneficioResponse(pagamento.getBeneficio(), modelMapper);
+        }
     }
 }

@@ -1,9 +1,10 @@
 package br.edu.ufape.sguPraeService.comunicacao.dto.estudante;
 
+import br.edu.ufape.sguPraeService.comunicacao.dto.curso.CursoResponse;
 import br.edu.ufape.sguPraeService.comunicacao.dto.dadosBancarios.DadosBancariosResponse;
 import br.edu.ufape.sguPraeService.comunicacao.dto.endereco.EnderecoResponse;
+import br.edu.ufape.sguPraeService.comunicacao.dto.tipoEtnia.TipoEtniaResponse;
 import br.edu.ufape.sguPraeService.comunicacao.dto.usuario.UsuarioResponse;
-//import br.edu.ufape.sguPraeService.comunicacao.dto.curso.CursoResponse;
 import br.edu.ufape.sguPraeService.models.Estudante;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -19,7 +20,8 @@ public class EstudanteResponse extends UsuarioResponse {
     // Herda ID (UUID), nome, cpf, email, etc. de UsuarioResponse
 
     private String matricula;
-//    private CursoResponse curso;
+    private CursoResponse curso;
+    private TipoEtniaResponse tipoEtnia;
     private BigDecimal rendaPercapta;
     private String contatoFamilia;
     private boolean deficiente;
@@ -35,9 +37,12 @@ public class EstudanteResponse extends UsuarioResponse {
         this.deficiente = estudante.isDeficiente();
         this.tipoDeficiencia = estudante.getTipoDeficiencia();
 
-//        if (estudante.getCurso() != null) {
-//            this.curso = new CursoResponse(estudante.getCurso(), modelMapper);
-//        }
+        if (estudante.getCurso() != null) {
+            this.curso = new CursoResponse(estudante.getCurso(), modelMapper);
+        }
+        if (estudante.getTipoEtnia() != null) {
+            this.tipoEtnia = new TipoEtniaResponse(estudante.getTipoEtnia(), modelMapper);
+        }
         if (estudante.getEndereco() != null) {
             this.endereco = new EnderecoResponse(estudante.getEndereco(), modelMapper);
         }
