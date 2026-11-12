@@ -30,13 +30,20 @@ public class TokenResponseRewriteFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
+        boolean isLoginOrRefresh = "POST".equalsIgnoreCase(method)
+                && (path.matches(".*/login$") || path.matches(".*/refresh$"));
+        boolean isLogout = "POST".equalsIgnoreCase(method) && path.matches(".*/logout$");
+        boolean isResetPassword = "POST".equalsIgnoreCase(method) && path.matches(".*/reset-password$");
+
         HttpServletRequest requestToUse = request;
 
-        // 1. Injetar Authorization Header se houver cookie 'accessToken' (Aplica para todas as rotas restritas)
-        String accessToken = getCookieValue(request, "accessToken");
-        if (accessToken != null && request.getHeader(HttpHeaders.AUTHORIZATION) == null) {
-            requestToUse = new HeaderModifierRequestWrapper(requestToUse);
-            ((HeaderModifierRequestWrapper) requestToUse).addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+        // 1. Injetar Authorization Header se houver cookie 'accessToken' (exceto em rotas públicas de auth onde um token expirado bloquearia o refresh/login/logout)
+        if (!isLoginOrRefresh && !isLogout && !isResetPassword) {
+            String accessToken = getCookieValue(request, "accessToken");
+            if (accessToken != null && !accessToken.isBlank() && request.getHeader(HttpHeaders.AUTHORIZATION) == null) {
+                requestToUse = new HeaderModifierRequestWrapper(requestToUse);
+                ((HeaderModifierRequestWrapper) requestToUse).addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+            }
         }
 
         // 2. Fluxo de Refresh: Injetar cookie refreshToken como parâmetro
@@ -52,7 +59,7 @@ public class TokenResponseRewriteFilter extends OncePerRequestFilter {
         }
 
         // 3. Fluxo de Logout: Injetar refreshToken como parâmetro
-        if ("POST".equalsIgnoreCase(method) && path.matches(".*/logout$")) {
+        if (isLogout) {
             String refreshToken = getCookieValue(request, "refreshToken");
             if (refreshToken != null) {
                 if (!(requestToUse instanceof HeaderModifierRequestWrapper)) {
@@ -62,21 +69,16 @@ public class TokenResponseRewriteFilter extends OncePerRequestFilter {
             }
         }
 
-        // Preparar para interceptar a resposta do Controller
-        ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
-
-        // Continua o fluxo chamando o AuthController
-        filterChain.doFilter(requestToUse, responseWrapper);
-
-        // Pós-processamento: Reescrever a resposta final baseada na rota
-        if ("POST".equalsIgnoreCase(method) && (path.matches(".*/login$") || path.matches(".*/refresh$"))) {
+        // Apenas encapsula a resposta em buffer quando for necessário reescrever o corpo JSON (/login e /refresh)
+        // Isso evita quebrar conexões de streaming como SSE (/notificacoes/stream) e evita consumo excessivo de RAM.
+        if (isLoginOrRefresh) {
+            ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(response);
+            filterChain.doFilter(requestToUse, responseWrapper);
             processTokenResponse(responseWrapper);
-        } else if ("POST".equalsIgnoreCase(method) && path.matches(".*/logout$")) {
-            processLogoutResponse(responseWrapper);
+            responseWrapper.copyBodyToResponse();
+        } else {
+            filterChain.doFilter(requestToUse, response);
         }
-
-        // Escreve a resposta interceptada e modificada de volta para o cliente HTTP
-        responseWrapper.copyBodyToResponse();
     }
 
     private void processTokenResponse(ContentCachingResponseWrapper responseWrapper) throws IOException {
@@ -88,17 +90,13 @@ public class TokenResponseRewriteFilter extends OncePerRequestFilter {
                 String refresh = root.path("refresh_token").asText(null);
 
                 if (access != null && refresh != null) {
-                    // Adiciona cookies seguros na resposta
-                    addCookie(responseWrapper, "accessToken", access, 15 * 60);
-                    addCookie(responseWrapper, "refreshToken", refresh, 7 * 24 * 3600);
-
                     Long exp = extractExpFromToken(access);
                     String successResponse = String.format(
                             "{\"message\":\"Login bem-sucedido\",\"exp\":%d}",
                             exp != null ? exp : (System.currentTimeMillis() / 1000) + 900
                     );
 
-                    // Reescreve o corpo da resposta escondendo o token (Exatamente como o Gateway fazia)
+                    // Reescreve o corpo da resposta escondendo o token (os cookies seguros já foram adicionados pelo AuthController)
                     byte[] newBody = successResponse.getBytes(StandardCharsets.UTF_8);
                     responseWrapper.resetBuffer();
                     responseWrapper.getOutputStream().write(newBody);
@@ -109,17 +107,6 @@ public class TokenResponseRewriteFilter extends OncePerRequestFilter {
                 // Se der erro no parse, mantém a resposta de erro original
             }
         }
-    }
-
-    private void processLogoutResponse(ContentCachingResponseWrapper responseWrapper) {
-        addCookie(responseWrapper, "accessToken", "", 0);
-        addCookie(responseWrapper, "refreshToken", "", 0);
-    }
-
-    private void addCookie(HttpServletResponse response, String name, String value, int maxAge) {
-        // Criando cabeçalho manualmente para suportar as flags SameSite=Lax nativamente
-        String cookieHeader = String.format("%s=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=Lax", name, value, maxAge);
-        response.addHeader(HttpHeaders.SET_COOKIE, cookieHeader);
     }
 
     private String getCookieValue(HttpServletRequest request, String name) {
@@ -145,14 +132,14 @@ public class TokenResponseRewriteFilter extends OncePerRequestFilter {
         }
     }
 
-    // Classe Wrapper interna para forjar novos headers e parâmetros na requisição (Necessário para a API de Servlets)
+    // Classe Wrapper interna para forjar novos headers e parâmetros na requisição (case-insensitive para headers HTTP)
     private static class HeaderModifierRequestWrapper extends HttpServletRequestWrapper {
         private final Map<String, String> customHeaders;
         private final Map<String, String[]> customParameters;
 
         public HeaderModifierRequestWrapper(HttpServletRequest request) {
             super(request);
-            this.customHeaders = new HashMap<>();
+            this.customHeaders = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             this.customParameters = new HashMap<>(request.getParameterMap());
         }
 
@@ -171,8 +158,18 @@ public class TokenResponseRewriteFilter extends OncePerRequestFilter {
         }
 
         @Override
+        public Enumeration<String> getHeaders(String name) {
+            String headerValue = customHeaders.get(name);
+            if (headerValue != null) {
+                return Collections.enumeration(Collections.singletonList(headerValue));
+            }
+            return super.getHeaders(name);
+        }
+
+        @Override
         public Enumeration<String> getHeaderNames() {
-            Set<String> set = new HashSet<>(customHeaders.keySet());
+            Set<String> set = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+            set.addAll(customHeaders.keySet());
             Enumeration<String> e = super.getHeaderNames();
             while (e.hasMoreElements()) {
                 set.add(e.nextElement());

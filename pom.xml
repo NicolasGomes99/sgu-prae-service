@@ -29,6 +29,8 @@
 
     <properties>
         <java.version>24</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <querydsl.version>5.1.0</querydsl.version>
         <!-- A propriedade spring-cloud.version foi removida -->
     </properties>
@@ -215,6 +217,7 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>com.querydsl</groupId>
@@ -235,6 +238,7 @@
                     </annotationProcessorPaths>
                     <generatedSourcesDirectory>${project.build.directory}/generated-sources/java</generatedSourcesDirectory>
                     <compilerArgs>
+                        <arg>-implicit:class</arg>
                         <arg>-Aquerydsl.entityAccessors=false</arg>
                         <arg>-Aquerydsl.useFields=false</arg>
                     </compilerArgs>

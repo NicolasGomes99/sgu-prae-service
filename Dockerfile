@@ -7,7 +7,7 @@ WORKDIR /app
 COPY mvnw ./
 COPY .mvn .mvn
 COPY pom.xml ./
-RUN chmod +x mvnw
+RUN sed -i 's/\r$//' mvnw .mvn/wrapper/maven-wrapper.properties && chmod +x mvnw
 # Use the Maven wrapper to download dependencies and prepare the project
 RUN --mount=type=cache,target=/root/.m2 \
     ./mvnw dependency:go-offline -B
@@ -15,10 +15,17 @@ RUN --mount=type=cache,target=/root/.m2 \
 COPY src ./src
 # Build the project using the Maven wrapper, skipping tests
 RUN --mount=type=cache,target=/root/.m2 \
-    ./mvnw clean install -DskipTests
+    ./mvnw clean package -DskipTests -B
 
 FROM ${BASE_IMAGE} AS runtime
 WORKDIR /app
 
-COPY --from=build /app/target/*.jar app.jar
+RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser \
+    && mkdir -p /app/storage \
+    && chown -R appuser:appgroup /app \
+    && chmod 775 /app/storage
+
+COPY --from=build --chown=appuser:appgroup /app/target/*.jar app.jar
+
+USER appuser
 ENTRYPOINT ["java","-jar","app.jar"]

@@ -1,0 +1,78 @@
+# =====================================================================
+# PROFILE PROD (Produção Blindada / Fail-Fast)
+# NENHUMA credencial possui valor default. Se faltar variável no deploy,
+# o Spring Boot aborta a inicialização imediatamente (Fail-Fast).
+# =====================================================================
+arquivo:
+  diretorio-upload: ${UPLOAD_DIR:/app/storage}
+
+spring:
+  devtools:
+    livereload:
+      enabled: false
+    add-properties: false
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASS}
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+
+  security:
+    oauth2:
+      client:
+        provider:
+          keycloak:
+            issuer-uri: ${KEYCLOAK_ISSUER_URI:${keycloak.auth-server-url}/realms/${keycloak.realm}}
+            user-name-attribute: preferred_username
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:${keycloak.auth-server-url}/realms/${keycloak.realm}}
+          jwk-set-uri: ${keycloak.auth-server-url}/realms/${keycloak.realm}/protocol/openid-connect/certs
+
+keycloak:
+  auth-server-url: ${KEYCLOAK_URL}
+  realm: ${KEYCLOAK_REALM}
+  client-id: ${KEYCLOAK_CLIENT_ID}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET}
+
+common:
+  front: ${FRONTEND_URL}
+  emailEnabled: ${EMAIL_ENABLED:true}
+  cookie-secure: ${COOKIE_SECURE:true}
+  cookie-same-site: ${COOKIE_SAMESITE:Lax}
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
+logging:
+  level:
+    org:
+      springframework: ${LOG_LEVEL:WARN}
+    br.edu.ufape.sguPraeService: ${APP_LOG_LEVEL:INFO}

@@ -1,3 +1,5 @@
+name: sgu-prae-service
+
 services:
   sgu-prae-service:
     image: sgu-prae-service
@@ -10,6 +12,7 @@ services:
     environment:
       TZ: America/Sao_Paulo
       SPRING_PROFILES_ACTIVE: docker
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-sgu-prae-local-dev-secret}
     depends_on:
       prae-db:
         condition: service_healthy
@@ -17,8 +20,12 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     volumes:
-      - ./storage:/app/storage
+      - prae-storage:/app/storage
 
   prae-db:
     image: postgres:16.0
@@ -35,7 +42,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5432:5432"
+      - "5435:5432"
     networks:
       - sgu-networks
     volumes:
@@ -59,6 +66,8 @@ services:
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: password
       KC_DB_SCHEMA: public
+      JAVA_OPTS_APPEND: "-Dkeycloak.migration.replace-placeholders=true"
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-sgu-prae-local-dev-secret}
     command: start-dev --import-realm
     depends_on:
       keycloak-db:
@@ -67,8 +76,8 @@ services:
       test: [ "CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'" ]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 45s
     volumes:
       - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
 
@@ -116,6 +125,11 @@ services:
     command: redis-server --appendonly yes
     ports:
       - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - sgu-networks
     volumes:
@@ -136,6 +150,8 @@ volumes:
   keycloak-pg-data:
     driver: local
   redis-data:
+    driver: local
+  prae-storage:
     driver: local
 
 networks:

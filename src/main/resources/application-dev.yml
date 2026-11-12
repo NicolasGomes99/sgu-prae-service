@@ -1,0 +1,76 @@
+# =====================================================================
+# PROFILE DEV (Execução local via IDE sem precisar de variáveis extras)
+# =====================================================================
+arquivo:
+  diretorio-upload: ${UPLOAD_DIR:./storage}
+
+spring:
+  devtools:
+    livereload:
+      enabled: true
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5435/prae}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:password}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:nao-responda@ufape.edu.br}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
+
+  security:
+    oauth2:
+      client:
+        provider:
+          keycloak:
+            issuer-uri: ${keycloak.auth-server-url}/realms/${keycloak.realm}
+            user-name-attribute: preferred_username
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${keycloak.auth-server-url}/realms/${keycloak.realm}/protocol/openid-connect/certs
+
+keycloak:
+  auth-server-url: ${KEYCLOAK_URL:http://localhost:9090}
+  realm: ${KEYCLOAK_REALM:sgu-ufape}
+  client-id: ${KEYCLOAK_CLIENT_ID:sgu-application}
+  # Secret local sincronizado via variável de ambiente e auto-heal com o Keycloak de dev
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:sgu-prae-local-dev-secret}
+  admin-username: ${KEYCLOAK_ADMIN_USER:admin}
+  admin-password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+
+common:
+  front: ${FRONTEND_URL:http://localhost:3000,http://localhost:5173}
+  emailEnabled: ${EMAIL_ENABLED:false}
+  cookie-secure: ${COOKIE_SECURE:false}
+  cookie-same-site: ${COOKIE_SAMESITE:Lax}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    org:
+      springframework: ${LOG_LEVEL:INFO}
+    br.edu.ufape.sguPraeService: DEBUG

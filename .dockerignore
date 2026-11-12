@@ -1,0 +1,27 @@
+# Git e Controle de Versão
+.git
+.gitignore
+.gitattributes
+
+# IDEs e Editores
+.idea
+.vscode
+.settings
+.classpath
+.project
+*.iml
+*.iws
+*.ipr
+
+# Artefatos de Build Locais e Dados Temporários
+target/
+build/
+storage/
+
+# Arquivos de Ambiente e Infraestrutura Local (NUNCA devem entrar na imagem de produção)
+.env
+.env.*
+docker-compose.yaml
+docker-compose.yml
+realm-export.json
+*.md
